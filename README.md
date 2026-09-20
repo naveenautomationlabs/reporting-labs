@@ -219,6 +219,42 @@ Every outcome Playwright can produce, not just pass and fail:
 - interrupted runs show a banner with how many tests did not finish
 - the Environment card shows Playwright and Node versions, OS, browsers, workers, shard, the CI job link and the git commit
 
+## How it compares
+
+Legend: ✅ built in · 🟡 possible with manual setup or extra config · ❌ not in the official docs
+
+| Feature | Playwright HTML | Allure | reportingLabs |
+|---|:---:|:---:|:---:|
+| Single HTML file, opens without a server | ❌ folder, served by `show-report` | 🟡 single-file mode (2.24+, Allure 3 plugin), otherwise `allure open` | ✅ |
+| No extra tooling | ✅ | ❌ CLI needed; Allure 2 needs Java | ✅ npm package only |
+| Setup | ✅ built in | 🟡 reporter + generate step | ✅ one line in `reporter:` |
+| Steps, screenshots, videos, traces | ✅ | ✅ | ✅ |
+| Visual comparison viewer (slider, side by side, diff) | ❌ | ❌ | ✅ |
+| Tags and annotations shown | ✅ | ✅ labels via runtime API | ✅ `meta()` + tags |
+| Priority / severity / owner / feature / epic / story | 🟡 custom annotations | ✅ labels | ✅ |
+| Links to Jira, TMS | 🟡 annotation with a URL | ✅ `issue()`, `tms()` | ✅ `links` templates |
+| Failures ranked by priority and severity | ❌ | ❌ | ✅ Needs attention |
+| Failures by owner | ❌ | 🟡 owner label, no rollup documented | ✅ |
+| History across runs | ❌ | 🟡 History Trend when historical data is accumulated | ✅ history file, zero setup |
+| New vs known failures ("failing since #1840") | ❌ | ❌ | ✅ |
+| Flaky detection | ✅ `flaky` outcome per run | 🟡 `@Flaky` annotation (Java) | ✅ outcome + flakiest over last runs |
+| Got slower vs last run | ❌ | ❌ | ✅ |
+| Trend chart | ❌ | ✅ | ✅ |
+| Failures grouped by root cause | ❌ | 🟡 `categories.json` with regex | ✅ automatic clusters |
+| Failures explained in plain words | ❌ | ❌ | ✅ 18 kinds |
+| Bug report in one click | ❌ | ❌ | ✅ Markdown, Jira, text |
+| Environment info | ❌ | 🟡 `environment.properties` | ✅ automatic + `env` option |
+| API calls with request/response | ❌ | 🟡 manual attachments | ✅ automatic, Copy as cURL |
+| Logs and test data blocks | 🟡 attachments | 🟡 attachments, parameters | ✅ `log()`, `testData()` |
+| Secrets masked | ❌ | 🟡 parameter masking | ✅ automatic |
+| CSV / JSON export of failures, Slack summary | ❌ | ❌ | ✅ |
+| Timeline by worker | ❌ | ✅ | ✅ |
+| Combine shards / several runs | ✅ blob + `merge-reports` | ✅ Launches | ❌ on the roadmap |
+| Frameworks beyond Playwright | ❌ | ✅ many languages | ❌ on the roadmap |
+| Free and open source | ✅ | ✅ (Allure TestOps is a separate paid product) | ✅ MIT |
+
+Based on the official docs as of September 2026. ❌ means the feature is not described in the tool's documentation, not that it is impossible. Sources: Playwright [reporters](https://github.com/microsoft/playwright/blob/main/docs/src/test-reporters-js.md), [annotations](https://github.com/microsoft/playwright/blob/main/docs/src/test-annotations-js.md), [retries](https://github.com/microsoft/playwright/blob/main/docs/src/test-retries-js.md), [sharding](https://github.com/microsoft/playwright/blob/main/docs/src/test-sharding-js.md), [trace viewer](https://github.com/microsoft/playwright/blob/main/docs/src/trace-viewer-intro-js.md); Allure [allure-playwright](https://github.com/allure-framework/allure-js/blob/main/packages/allure-playwright/README.md), [Allure 3](https://github.com/allure-framework/allure3), [Allure 2.24.0 release](https://github.com/allure-framework/allure2/releases/tag/2.24.0), [Allure docs: command line](https://github.com/allure-framework/allure-docs/blob/main/content/reporting/commandline.md), [features](https://github.com/allure-framework/allure-docs/blob/main/content/gettingstarted/features.md), [report structure](https://github.com/allure-framework/allure-docs/blob/main/content/gettingstarted/report-structure.md). If something here is out of date, open an issue and it will be fixed.
+
 ## All options
 
 Every option is optional. `npx reporting-labs init` writes them all, with comments, into `reporting-labs.config.ts` (`--js` for JavaScript, `--force` to overwrite).
