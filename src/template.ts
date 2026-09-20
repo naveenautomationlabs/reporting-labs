@@ -236,6 +236,7 @@ a{color:var(--accent)}
 .item .tt .n{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item .d{font:11px var(--mono);color:var(--ink-3);margin-top:3px}
 .empty{padding:40px 20px;text-align:center;color:var(--ink-3)}
+.nudge{font-size:var(--fs-s);color:var(--ink-2);background:var(--surface-2);border:1px dashed var(--line);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;line-height:1.5} .nudge code{font-family:var(--mono);font-size:12px} .nudge b{color:var(--ink)}
 
 /* ---------- detail ---------- */
 .detail{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;min-width:0}
@@ -841,6 +842,7 @@ function summary(){
   if(W.skipped!==false) { const sc=skippedCard(); if(sc) g.push(sc); }
   if(W.environment!==false) { const ec=envCard(); if(ec) g.push(ec); }
   if(data.history.length>1) g.push(h('div',{class:'card w12'}, h('h2',{},'Trend', h('span',{class:'hint'},'last '+data.history.length+' runs')), trend()));
+  else if(data.history.length===1) g.push(h('div',{class:'card w12'}, h('h2',{},'Trend', h('span',{class:'hint'},'from the second run')), h('div',{class:'nudge'}, h('b',{},'First run recorded.'),' Run the suite once more and this card shows the pass-rate trend, and every failure gets "new this run" or "failing since #…", last-10-runs dots, a Flakiest tests card and a Got slower tab. History lives in ',h('code',{},data.historyFile||'reporting-labs.history.json'),', commit it or cache it in CI.')));
   const ge=data.globalErrors||[], go=data.globalOutput||[];
   if(ge.length||go.some(x=>x.stream==='err')) g.unshift(h('div',{class:'card w12 fail-rail'}, h('h2',{}, ge.length? ge.length+' error'+(ge.length>1?'s':'')+' outside tests' : 'Output outside tests', h('span',{class:'hint'},'spec files that failed to load, global setup, worker crashes')),
     ...ge.map(errorView), go.length? h('details',{class:'errfull'}, h('summary',{},'Console output outside tests ('+go.length+' chunks)'), h('pre',{class:'txt'}, go.map(x=>(x.stream==='err'?'[stderr] ':'')+x.text).join(''))) : null));
@@ -1106,10 +1108,11 @@ function breakdown(){
   if(data.options.widgets.tags&&data.tests.some(t=>t.tags.length)) tabs.push(['tags','Tags',tagsChart]);
   if(data.projects.length>1&&DIMS.length) tabs.push(['heat','Heatmap',heatmap]);
   if(!tabs.length) return h('div',{class:'empty'},'Add meta({ priority, severity, owner, feature }) to your tests to see breakdowns here.');
+  const nudge=!DIMS.length? h('div',{class:'nudge'}, h('b',{},'Tip:'),' add ',h('code',{},"meta({ priority: 'P1', severity: 'major', owner: 'priya', feature: 'checkout' })"),' at the top of a test and this card gains Priority, Severity, Feature and Owner tabs, the failures get ranked, and owners get their own rollup.') : null;
   let cur=tabs[0][0]; const bar=h('div',{class:'bk-tabs'}), body=h('div',{});
   const render=()=>{ body.innerHTML=''; body.append(tabs.find(t=>t[0]===cur)[2]()); bar.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',b.dataset.k===cur)); };
   for(const [k,l] of tabs) bar.append(h('button',{'data-k':k,onclick:()=>{cur=k;render();}},l));
-  render(); return h('div',{}, bar, body);
+  render(); return h('div',{}, nudge, bar, body);
 }
 function errorSignature(msg){
   return (msg||'').split('\n')[0].replace(/\d+(\.\d+)?(ms|s)\b/g,'N').replace(/\b\d{2,}\b/g,'N').replace(/["'][^"']{0,60}["']/g,'"…"').replace(/\s+/g,' ').trim().slice(0,160);

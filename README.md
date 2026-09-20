@@ -53,6 +53,17 @@ Done. Everything below is optional.
 
 > **In a hurry?** Skip the config file and pass options inline: `reporter: [['reporting-labs', { title: 'My app' }]]`.
 
+## See everything the report can do
+
+Every card and tab is switched on. What you see depends on what your tests give it:
+
+1. **Add `meta()` to your tests** and the report ranks failures by priority, groups them by owner and feature, and links to your stories. See [the helpers](#add-details-to-your-tests-3-small-helpers).
+2. **Run the suite twice** and the Trend chart, "new vs known" failures, flaky dots and "Got slower" appear. History is kept in `reporting-labs.history.json`.
+3. **Turn on Playwright's `screenshot`, `video` and `trace`** in `playwright.config.ts` and they show up on every failed test.
+4. **Have more than one Playwright project** (say chromium and webkit) and you get a feature × project heatmap.
+
+The report tells you about these itself: a card that has nothing to show yet explains what to do.
+
 ## Add details to your tests (3 small helpers)
 
 The report already shows steps, screenshots, videos, traces and errors on its own. Three small helpers add the rest. Import them from `reporting-labs` and call them inside a test.
