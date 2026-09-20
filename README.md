@@ -73,6 +73,7 @@ One line per test. With this the report can rank failures by priority, group the
 - Known keys: `priority`, `severity`, `owner`, `feature`, `epic`, `story`, `issue`, `component`, `team`. Any other key you pass is shown too.
 - Your Playwright tags like `@sanity` or `@regression` stay as they are and still show on the test.
 - To make story and epic keys clickable, set `links` in the config: `links: { story: 'https://yourteam.atlassian.net/browse/{id}' }`.
+- `priority`, `severity`, `feature` and `owner` each get a tab in the Breakdown chart and a filter on the Tests page. Want the same for your own key, say `meta({ team: 'web' })`? Add it to `dimensions` in the config: `dimensions: ['priority', 'severity', 'feature', 'owner', 'team']`.
 
 ### `log()`: a line in the report
 
@@ -268,8 +269,8 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `env` | – | Extra rows on the Environment card |
 | `links` | `{}` | Turn meta keys into links. `{id}` is replaced by the value |
 | `maskKeys` | `[]` | Extra keys to mask as `****` |
-| `dimensions` | `['priority','severity','feature','owner']` | Meta keys that get charts and filters |
-| `dimensionOrder` | P0…P4, blocker…trivial | Sort order per dimension |
+| `dimensions` | `['priority','severity','feature','owner']` | Which `meta()` keys get a tab in the Breakdown chart and a dropdown filter on the Tests page. Add your own key, e.g. `'team'`, to get a chart for it |
+| `dimensionOrder` | P0…P4, blocker…trivial | The order values appear in those charts and filters. Only needed for your own values, e.g. `{ severity: ['high','medium','low'] }` |
 | `widgets` | all on | Hide cards: `{ tags: false, timeline: false, ... }`. Failure clusters and the Trend chart are always shown |
 | `sections` | `[]` | Extra HTML below the summary, e.g. release notes |
 | `history` | `{ enabled: true, keep: 30 }` | Run history file; `file` sets a custom path |

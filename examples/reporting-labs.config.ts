@@ -19,8 +19,13 @@ const config: ReportingLabsOptions = {
     issue: 'https://shoplite.atlassian.net/browse/{id}',
   },
 
-  // Which meta keys get charts and filters (these are the defaults plus two more).
-  dimensions: ['priority', 'severity', 'feature', 'owner', 'epic', 'story'],
+  // Which meta keys get their own tab in the Breakdown chart and a dropdown filter on the Tests page.
+  // These are the defaults. Add your own key (e.g. 'team') to get a chart for it.
+  dimensions: ['priority', 'severity', 'feature', 'owner'],
+
+  // The order values appear in those charts. Priority and severity are already ordered;
+  // set this only for your own values, e.g. { team: ['web', 'api', 'mobile'] }.
+  // dimensionOrder: { severity: ['high', 'medium', 'low'] },
 
   // Videos inside the HTML: one file to share, no folder permission issues.
   embedVideos: true,

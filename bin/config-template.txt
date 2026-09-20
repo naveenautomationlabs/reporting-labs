@@ -35,8 +35,17 @@ const config: ReportingLabsOptions = {
 
   // ── Test details ─────────────────────────────────────────────────────────────
   // Values come from meta({ priority, severity, owner, feature, epic, story, ... }) in your tests.
-  // dimensions: ['priority', 'severity', 'feature', 'owner'],   // which meta keys get charts and filters
-  // dimensionOrder: { severity: ['blocker', 'critical', 'major', 'minor', 'trivial'] },
+  //
+  // dimensions: which meta keys get their own tab in the Breakdown chart and a dropdown filter on the
+  // Tests page. Default: priority, severity, feature, owner. Add your own key when you want a chart
+  // for it, e.g. meta({ team: 'web' }) + 'team' here = a "Team" tab showing pass/fail per team.
+  // Keys like epic and story do not need to be here: they show as chips and links on every test anyway.
+  // dimensions: ['priority', 'severity', 'feature', 'owner', 'team'],
+  //
+  // dimensionOrder: the order values appear in those charts and filters. Priority (P0..P4) and
+  // severity (blocker..trivial) are already ordered. Set this only for your own values,
+  // e.g. { severity: ['high', 'medium', 'low'] } or { team: ['web', 'api', 'mobile'] }.
+  // dimensionOrder: { severity: ['high', 'medium', 'low'] },
   // links: {                                         // turn meta keys into links; {id} is the value
   //   story: 'https://acme.atlassian.net/browse/{id}',
   //   epic: 'https://acme.atlassian.net/browse/{id}',
