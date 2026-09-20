@@ -55,6 +55,10 @@ export interface ReportingLabsOptions {
   embedFonts?: boolean;
   /** Print report path to the console after the run. Default: true */
   announce?: boolean;
+  /** After the run, list the tests that have no meta() in the console. Default: true */
+  warnMissingMeta?: boolean;
+  /** Open the report in the browser after the run: 'on-failure' (default), 'always' or 'never'. Never opens in CI. */
+  open?: 'on-failure' | 'always' | 'never';
   /** Company / project block in the header. */
   project?: { name?: string; version?: string; url?: string; description?: string; team?: string };
   /**

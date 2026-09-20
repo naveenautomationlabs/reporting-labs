@@ -46,8 +46,9 @@ Your other reporters (list, html, blob...) keep working as before.
 
 ```bash
 npx playwright test
-open reporting-labs/index.html
 ```
+
+The report opens in your browser when something failed (`open: 'always'` to open every time, `'never'` to stay quiet). It is at `reporting-labs/index.html`.
 
 Done. Everything below is optional.
 
@@ -84,6 +85,7 @@ One line per test. With this the report can rank failures by priority, group the
 - Known keys: `priority`, `severity`, `owner`, `feature`, `epic`, `story`, `issue`, `component`, `team`. Any other key you pass is shown too.
 - Your Playwright tags like `@sanity` or `@regression` stay as they are and still show on the test.
 - To make story and epic keys clickable, set `links` in the config: `links: { story: 'https://yourteam.atlassian.net/browse/{id}' }`.
+- Forgot one? After every run the console lists the tests that have no `meta()`, with file and line. Turn it off with `warnMissingMeta: false`.
 - `priority`, `severity`, `feature` and `owner` each get a tab in the Breakdown chart and a filter on the Tests page. Want the same for your own key, say `meta({ team: 'web' })`? Add it to `dimensions` in the config: `dimensions: ['priority', 'severity', 'feature', 'owner', 'team']`.
 
 ### `log()`: a line in the report
@@ -298,6 +300,8 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `embedVideos` | `false` | Videos inside the HTML too (bigger file, no folder issues) |
 | `embedFonts` | `true` | Bundle the fonts (~140 KB) so it looks the same offline |
 | `announce` | `true` | Print the report path after the run |
+| `open` | `'on-failure'` | Open the report in the browser after the run: `'on-failure'`, `'always'` or `'never'`. Never opens in CI |
+| `warnMissingMeta` | `true` | After the run, list the tests that have no `meta()` in the console, so nobody on the team forgets |
 
 If your reporter list differs between CI and local, add the same line to both:
 
