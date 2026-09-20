@@ -3,6 +3,9 @@ import type { ReportingLabsOptions } from 'reporting-labs';
 
 // reportingLabs configuration.
 // Every option is optional. Lines that start with // show the default; uncomment and change what you need.
+// All cards and tabs are on by default. What the report shows depends on your tests: add meta() for
+// priorities and owners, run the suite twice for trends and flaky detection, and keep Playwright's
+// screenshot / video / trace settings on. A card with nothing to show yet tells you what to do.
 // Docs: https://github.com/naveenautomationlabs/reporting-labs#options
 
 const config: ReportingLabsOptions = {
