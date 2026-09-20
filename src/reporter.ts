@@ -4,7 +4,7 @@ import type {
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import { ReportingLabsOptions, ReportData, TestData, ResultData, StepData, AttachmentData, Status, EnvRow, ErrorData } from './types';
 import { renderHtml } from './template';
 import { makeMasker, parseCsv } from './mask';
@@ -178,8 +178,41 @@ export default class ReportingLabsReporter implements Reporter {
     fs.writeFileSync(file, renderHtml(data), 'utf8');
     if (this.options.announce !== false) {
       const rel = path.relative(process.cwd(), file);
-      console.log(`\n  reporting-labs: report written to ${rel}\n`);
+      console.log(`\n  reporting-labs: report written to ${rel}`);
+      this.printMissingMeta(tests);
+      console.log('');
     }
+    this.maybeOpen(file, result);
+  }
+
+  /** One short list of tests that carry no meta() at all, so the whole team keeps the report useful. */
+  private printMissingMeta(tests: TestData[]) {
+    if (this.options.warnMissingMeta === false) return;
+    const seen = new Set<string>();
+    const missing = tests.filter(t => Object.keys(t.meta).length === 0 && !seen.has(t.file + ':' + t.line) && seen.add(t.file + ':' + t.line));
+    if (!missing.length) return;
+    const total = new Set(tests.map(t => t.file + ':' + t.line)).size;
+    console.log(`  reporting-labs: ${missing.length} of ${total} tests have no meta()`);
+    const show = missing.slice(0, 15);
+    const w = Math.max(...show.map(t => (t.file + ':' + t.line).length));
+    for (const t of show) console.log(`    ${(t.file + ':' + t.line).padEnd(w)}  ${t.title}`);
+    if (missing.length > show.length) console.log(`    … and ${missing.length - show.length} more`);
+    console.log("    Add meta({ priority: 'P1', owner: 'name', feature: 'area' }) at the top of the test. Set warnMissingMeta: false to hide this.");
+  }
+
+  /** Open the report in the default browser, like Playwright's HTML reporter. Never in CI. */
+  private maybeOpen(file: string, result: FullResult) {
+    const mode = this.options.open ?? 'on-failure';
+    if (mode === 'never' || process.env.CI) return;
+    if (mode === 'on-failure' && result.status === 'passed') return;
+    try {
+      const cmd = process.platform === 'darwin' ? ['open', [file]] as const
+        : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', file]] as const
+        : ['xdg-open', [file]] as const;
+      const child = spawn(cmd[0], [...cmd[1]], { detached: true, stdio: 'ignore' });
+      child.on('error', () => { /* no opener available, the path was printed above */ });
+      child.unref();
+    } catch { /* ignore */ }
   }
 
   // ---- helpers -------------------------------------------------------------
