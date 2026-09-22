@@ -8,6 +8,10 @@ reportingLabs turns a test run into a single HTML file. No server. No upload. No
 
 Today it ships with a **Playwright** reporter. WebdriverIO, Cypress and Jest/Vitest are on the roadmap.
 
+<p align="center"><img src="https://raw.githubusercontent.com/naveenautomationlabs/reporting-labs/main/docs/quickstart.gif" alt="reportingLabs in three steps: install, tag your tests, open one HTML file" width="900"></p>
+
+<p align="center"><em>Install, tag your tests, open one HTML file.</em></p>
+
 <p align="center"><img src="https://raw.githubusercontent.com/naveenautomationlabs/reporting-labs/main/docs/overview.png" alt="Overview page of a reportingLabs report" width="900"></p>
 
 ## Quick start (2 minutes)
