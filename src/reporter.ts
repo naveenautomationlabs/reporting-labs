@@ -217,22 +217,25 @@ export default class ReportingLabsReporter implements Reporter {
 
   // ---- helpers -------------------------------------------------------------
 
-  /** Videos and traces are finalized asynchronously by the runner; wait until every file-backed attachment stops growing. */
+  /** Videos and traces are finalized asynchronously by the runner; wait until every file-backed attachment stops growing.
+   *  All files are polled in parallel so total wait is bounded by the slowest single file, not the sum. */
   private async settleAttachmentFiles(): Promise<void> {
     const paths = new Set<string>();
     for (const test of this.suite.allTests()) for (const r of test.results) for (const a of r.attachments) if (a.path) paths.add(a.path);
+    if (!paths.size) return;
     const size = (p: string) => { try { return fs.statSync(p).size; } catch { return -1; } };
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-    for (const p of paths) {
+    const wait = async (p: string) => {
       let last = size(p);
-      for (let i = 0; i < 20; i++) {           // up to ~5 s per file
-        if (last < 0) break;                     // not on disk (yet); nothing to wait for
+      if (last < 0) return;                         // never appeared; nothing to wait for
+      for (let i = 0; i < 20; i++) {                 // up to ~5 s per file
         await sleep(250);
         const now = size(p);
-        if (now === last && now > 0) break;
+        if (now === last && now > 0) return;          // stable and non-empty: settled
         last = now;
       }
-    }
+    };
+    await Promise.all([...paths].map(wait));
   }
 
   /** Runtime facts for the Environment card: Playwright, Node, OS, browsers, CI job, git commit. */
