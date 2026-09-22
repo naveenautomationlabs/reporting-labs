@@ -267,7 +267,7 @@ Legend: ✅ built in · 🟡 possible with manual setup or extra config · ❌ n
 | Secrets masked | ❌ | 🟡 parameter masking | ✅ automatic |
 | CSV / JSON export of failures, Slack summary | ❌ | ❌ | ✅ |
 | Timeline by worker | ❌ | ✅ | ✅ |
-| Combine shards / several runs | ✅ blob + `merge-reports` | ✅ Launches | ❌ on the roadmap |
+| Combine shards / several runs | ✅ blob + `merge-reports` | ✅ Launches | ✅ `reporting-labs merge` |
 | Frameworks beyond Playwright | ❌ | ✅ many languages | ❌ on the roadmap |
 | Free and open source | ✅ | ✅ (Allure TestOps is a separate paid product) | ✅ MIT |
 
