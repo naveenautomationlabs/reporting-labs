@@ -1,0 +1,29 @@
+# Sample GitLab CI pipeline for a project that uses reportingLabs.
+# Copy to .gitlab-ci.yml in your own repository.
+image: mcr.microsoft.com/playwright:v1.63.0-jammy
+
+variables:
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .npm/
+    - reporting-labs.history.json     # keep the trend and new-vs-known between runs
+
+e2e:
+  script:
+    - npm ci
+    - npx playwright test
+  after_script:
+    # reportingLabs labels the run with CI_PIPELINE_IID and links the job in
+    # the Environment card automatically.
+    - echo "Report at $CI_JOB_URL/artifacts/browse/reporting-labs"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - reporting-labs/
+    # Show the summary numbers on the GitLab job page too.
+    reports:
+      junit: reporting-labs/*.xml     # only if you also add ['junit', ...] to reporter

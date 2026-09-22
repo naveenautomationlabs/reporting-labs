@@ -326,7 +326,7 @@ Two things to set up:
 1. **Publish the report.** Upload the `reporting-labs/` folder as a build artifact (or archive it in Jenkins). Videos and large files sit in `reporting-labs/assets/`, so keep the folder together.
 2. **Keep the history.** `reporting-labs.history.json` powers the trend and the new vs known failures. On GitHub Actions save it with `actions/cache`. On Jenkins the workspace usually keeps it on its own.
 
-Ready-to-copy samples: [docs/ci/github-actions.yml](https://github.com/naveenautomationlabs/reporting-labs/blob/main/docs/ci/github-actions.yml) and [docs/ci/Jenkinsfile](https://github.com/naveenautomationlabs/reporting-labs/blob/main/docs/ci/Jenkinsfile).
+Ready-to-copy samples: [github-actions.yml](https://github.com/naveenautomationlabs/reporting-labs/blob/main/docs/ci/github-actions.yml), [Jenkinsfile](https://github.com/naveenautomationlabs/reporting-labs/blob/main/docs/ci/Jenkinsfile) and [gitlab-ci.yml](https://github.com/naveenautomationlabs/reporting-labs/blob/main/docs/ci/gitlab-ci.yml). Each one includes an optional Slack (and, for Jenkins, email) step you can uncomment.
 
 ```yaml
 # GitHub Actions, the two steps that matter
@@ -343,6 +343,31 @@ Ready-to-copy samples: [docs/ci/github-actions.yml](https://github.com/naveenaut
 ```
 
 **Jenkins note.** Jenkins blocks inline JavaScript by default, so a single-file report shows up blank inside the Jenkins HTML Publisher (Playwright's own HTML report has the same issue). Download the archived artifact and open it locally, or ask an admin to relax the policy in the script console: `System.setProperty("hudson.model.DirectoryBrowserSupport.CSP", "")`.
+
+### Slack, email, Teams: use your CI's own integration
+
+reportingLabs deliberately does not build its own Slack or email sender. Every CI already has a first-class integration you can lean on, and it stays out of the way of the report itself:
+
+- **GitHub Actions:** `slackapi/slack-github-action` posts a message with the run URL and artifact link. `dawidd6/action-send-mail` handles email. Both are one YAML block, both take a repo secret. See the [github-actions.yml sample](https://github.com/naveenautomationlabs/reporting-labs/blob/main/docs/ci/github-actions.yml).
+- **Jenkins:** the Slack Notification plugin (`slackSend`) and the Email Extension plugin (`emailext`) do the same, plus they can attach `reporting-labs/index.html`. See the [Jenkinsfile sample](https://github.com/naveenautomationlabs/reporting-labs/blob/main/docs/ci/Jenkinsfile).
+- **GitLab CI:** the Slack integration in Project Settings posts pipeline results with no code at all. For a rich message, add a `notify` job with `curl` to your webhook.
+- **CircleCI, Bitbucket, Azure Pipelines:** each has a native Slack orb / task; a plain `curl` to the webhook also works from any shell step.
+
+Two reasons this stays outside the reporter:
+
+1. Your admin most likely already set up notifications for build and deploy. The same channel serves test results with no new moving parts.
+2. Notification delivery (auth, TLS, retries, corporate relays) is a full topic on its own. CI integrations handle it, this reporter stays a single HTML file.
+
+If you need a richer machine-readable summary in the same message, add Playwright's own JSON reporter next to reportingLabs and pipe it to your Slack step:
+
+```ts
+reporter: [
+  ['reporting-labs', require('./reporting-labs.config').default],
+  ['json', { outputFile: 'results.json' }],
+]
+```
+
+Your Slack step can then read `results.json` for pass / fail counts and top failures.
 
 ## Good to know
 
