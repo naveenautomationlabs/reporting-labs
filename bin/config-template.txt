@@ -31,6 +31,7 @@ const config: ReportingLabsOptions = {
   // ── Output ───────────────────────────────────────────────────────────────────
   // outputFolder: 'reporting-labs',                  // where index.html and copied attachments go
   // outputFile: 'index.html',
+  // emitJson: true,                                // also write report.json (used by `reporting-labs merge` for sharded runs)
   // embedAttachments: true,                          // inline screenshots as base64: one file, opens anywhere
   // embedLimit: 2 * 1024 * 1024,                     // attachments bigger than this (bytes) are copied as files
   // embedVideos: false,                              // true = videos inside the HTML too (bigger file, no folder issues)

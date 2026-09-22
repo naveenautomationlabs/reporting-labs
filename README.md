@@ -302,6 +302,8 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `embedAttachments` | `true` | Screenshots inside the HTML (one file) |
 | `embedLimit` | 2 MB | Bigger attachments are copied to `./assets` |
 | `embedVideos` | `false` | Videos inside the HTML too (bigger file, no folder issues) |
+| `emitJson` | `true` | Also write `report.json` alongside `index.html` (used by `merge`) |
+| `jsonFile` | `'report.json'` | File name of the JSON blob |
 | `embedFonts` | `true` | Bundle the fonts (~140 KB) so it looks the same offline |
 | `announce` | `true` | Print the report path after the run |
 | `open` | `'on-failure'` | Open the report in the browser after the run: `'on-failure'`, `'always'` or `'never'`. Never opens in CI |
@@ -347,6 +349,69 @@ Ready-to-copy samples: [github-actions.yml](https://github.com/naveenautomationl
 ```
 
 **Jenkins note.** Jenkins blocks inline JavaScript by default, so a single-file report shows up blank inside the Jenkins HTML Publisher (Playwright's own HTML report has the same issue). Download the archived artifact and open it locally, or ask an admin to relax the policy in the script console: `System.setProperty("hudson.model.DirectoryBrowserSupport.CSP", "")`.
+
+### Split your run across shards, then merge into one report
+
+Big test suite? Run it faster by splitting it into shards. Each shard is a separate CI job, all running at the same time. When they finish, join them into one report.
+
+**How it works:**
+
+1. Each shard runs your tests. Each one writes its own `reporting-labs/index.html` and a small `report.json` next to it. Save each shard's folder as a CI artifact.
+2. In one last job, download all the shard folders and run one command:
+
+```bash
+npx reporting-labs merge ./all-shards -o merged/
+```
+
+You get one report with:
+
+- All tests from every shard in one list, sorted by priority
+- Combined pass / fail / flaky numbers on top
+- One Trend chart, one Environment card, one Failure Clusters view
+- Screenshots and videos kept in `merged/assets/shard-1-of-4/`, `merged/assets/shard-2-of-4/`, so nothing overwrites
+
+**GitHub Actions example** (replace `npx playwright test` with your own command):
+
+```yaml
+jobs:
+  test:
+    strategy:
+      matrix: { shard: [1, 2, 3, 4] }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npx playwright test --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-shard-${{ matrix.shard }}
+          path: reporting-labs/
+          retention-days: 30
+
+  merge:
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { path: all-shards, pattern: 'report-shard-*' }
+      - run: npx reporting-labs merge all-shards -o merged/
+      - uses: actions/upload-artifact@v4
+        with: { name: merged-report, path: merged/, retention-days: 30 }
+```
+
+**Notes:**
+
+- The reporter always writes `report.json` alongside `index.html`, so `merge` just works. Turn it off with `emitJson: false` if you do not want it.
+- Not using shards? Ignore this section. The single-run report keeps working exactly as before.
 
 ### Slack, email, Teams: use your CI's own integration
 

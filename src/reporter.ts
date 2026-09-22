@@ -176,6 +176,10 @@ export default class ReportingLabsReporter implements Reporter {
 
     const file = path.join(this.outDir, this.options.outputFile ?? 'index.html');
     fs.writeFileSync(file, renderHtml(data), 'utf8');
+    if (this.options.emitJson !== false) {
+      const jsonFile = path.join(this.outDir, this.options.jsonFile ?? 'report.json');
+      fs.writeFileSync(jsonFile, JSON.stringify(data), 'utf8');
+    }
     if (this.options.announce !== false) {
       const rel = path.relative(process.cwd(), file);
       console.log(`\n  reporting-labs: report written to ${rel}`);
