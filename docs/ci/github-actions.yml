@@ -46,3 +46,16 @@ jobs:
           name: test-report
           path: reporting-labs/
           retention-days: 30
+
+      # Optional: post a Slack message with the artifact link.
+      # Add SLACK_WEBHOOK_URL under Settings -> Secrets and variables -> Actions.
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          payload: |
+            {
+              "text": "Playwright tests failed on ${{ github.ref_name }}\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\nReport: download the *test-report* artifact from the run page."
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

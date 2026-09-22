@@ -32,5 +32,24 @@ pipeline {
       //   System.setProperty("hudson.model.DirectoryBrowserSupport.CSP", "")
       // publishHTML(target: [reportDir: 'reporting-labs', reportFiles: 'index.html', reportName: 'Test report', keepAll: true])
     }
+
+    // Optional: Slack notification with the Slack Notification plugin.
+    failure {
+      slackSend(
+        color: 'danger',
+        channel: '#qa-reports',
+        message: "Playwright FAILED on ${env.BRANCH_NAME ?: env.JOB_NAME} #${env.BUILD_NUMBER}\nReport: ${env.BUILD_URL}artifact/reporting-labs/index.html"
+      )
+    }
+
+    // Optional: email the report as an attachment with the Email Extension plugin.
+    // unsuccessful {
+    //   emailext(
+    //     subject: "Playwright FAILED on ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+    //     body: "See attached report or open: ${env.BUILD_URL}artifact/reporting-labs/index.html",
+    //     to: 'qa-leads@acme.com',
+    //     attachmentsPattern: 'reporting-labs/index.html'
+    //   )
+    // }
   }
 }
