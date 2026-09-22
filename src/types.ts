@@ -13,6 +13,10 @@ export interface ReportingLabsOptions {
   outputFolder?: string;
   /** Output HTML file name inside outputFolder. Default: "index.html" */
   outputFile?: string;
+  /** Also write a machine-readable `report.json` alongside `index.html`. Used by `reporting-labs merge` to combine shard runs. Default: true. */
+  emitJson?: boolean;
+  /** File name of the JSON blob inside outputFolder. Default: "report.json" */
+  jsonFile?: string;
   /** Inline screenshots as base64 (single file, opens anywhere). Default: true */
   embedAttachments?: boolean;
   /** Max size (bytes) of a single attachment to embed. Larger ones are copied as files. Default: 2 MB */
