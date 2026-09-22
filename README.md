@@ -352,39 +352,100 @@ Ready-to-copy samples: [github-actions.yml](https://github.com/naveenautomationl
 
 ### Split your run across shards, then merge into one report
 
-Big test suite? Run it faster by splitting it into shards. Each shard is a separate CI job, all running at the same time. When they finish, join them into one report.
+Big test suite? Split it into shards so they run in parallel, then join every shard's report into one HTML at the end. Works on your laptop and on any CI.
 
-**How it works:**
+**What happens under the hood.** Each shard runs the reporter and writes its own `reporting-labs/` folder with `index.html` plus a small `report.json` next to it. The `merge` command reads every shard's `report.json`, combines them into one dataset, copies attachments into per-shard subfolders so nothing overwrites, and renders one HTML with all tests, one Trend chart, one Failure Clusters view, and a Shards row in the Environment card.
 
-1. Each shard runs your tests. Each one writes its own `reporting-labs/index.html` and a small `report.json` next to it. Save each shard's folder as a CI artifact.
-2. In one last job, download all the shard folders and run one command:
+Nothing extra to install and no config change needed. The reporter writes `report.json` on every run out of the box.
+
+#### Try it on your laptop first
+
+Three shards, run one after another (on a single machine you cannot really run them in parallel, but this proves the merge works end to end):
 
 ```bash
-npx reporting-labs merge ./all-shards -o merged/
+# Delete leftovers from any previous run
+rm -rf all-shards merged
+
+# Run each shard and move its folder aside so the next shard does not overwrite it
+mkdir -p all-shards
+npx playwright test --shard=1/3 && mv reporting-labs all-shards/s1
+npx playwright test --shard=2/3 && mv reporting-labs all-shards/s2
+npx playwright test --shard=3/3 && mv reporting-labs all-shards/s3
+
+# One command combines them
+npx reporting-labs merge all-shards -o merged
+
+# Open it
+open merged/index.html          # macOS
+# start merged/index.html       # Windows
+# xdg-open merged/index.html    # Linux
 ```
 
-You get one report with:
+Look for this line in each `npx playwright test` output:
 
-- All tests from every shard in one list, sorted by priority
-- Combined pass / fail / flaky numbers on top
-- One Trend chart, one Environment card, one Failure Clusters view
-- Screenshots and videos kept in `merged/assets/shard-1-of-4/`, `merged/assets/shard-2-of-4/`, so nothing overwrites
+```
+reporting-labs: report written to reporting-labs/index.html
+```
 
-**GitHub Actions example** (replace `npx playwright test` with your own command):
+That line proves the reporter ran and the folder exists to move. If you do not see it, your `playwright.config.ts` is not wiring `reporting-labs` as a reporter yet — see the [Quick start](#quick-start-2-minutes).
+
+**Custom output folder?** If your config has `outputFolder: 'my-report'`, use that name in the move step:
+
+```bash
+mv my-report all-shards/s1
+```
+
+**One-liner for a real parallel run on your laptop.** Runs three shards at once, then merges when all three finish:
+
+```bash
+rm -rf all-shards merged && mkdir -p all-shards
+(npx playwright test --shard=1/3 && mv reporting-labs all-shards/s1) &
+(npx playwright test --shard=2/3 && mv reporting-labs all-shards/s2) &
+(npx playwright test --shard=3/3 && mv reporting-labs all-shards/s3) &
+wait
+npx reporting-labs merge all-shards -o merged
+open merged/index.html
+```
+
+#### GitHub Actions
+
+Each shard runs on its own runner in parallel, then a final `merge` job downloads every shard's report and combines them. Copy-paste as `.github/workflows/tests.yml` in your repo:
 
 ```yaml
+name: Playwright tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
 jobs:
   test:
-    strategy:
-      matrix: { shard: [1, 2, 3, 4] }
+    name: shard ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci
       - run: npx playwright install --with-deps
+
+      # Keep the history file across runs so the Trend and new-vs-known
+      # failures build up over time. Each shard reads the same file.
+      - uses: actions/cache@v4
+        with:
+          path: reporting-labs.history.json
+          key: reporting-labs-history-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            reporting-labs-history-${{ github.ref_name }}-
+
       - run: npx playwright test --shard=${{ matrix.shard }}/4
+
+      # Save this shard's report so the merge job can pick it up.
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -393,6 +454,7 @@ jobs:
           retention-days: 30
 
   merge:
+    name: merge shards into one report
     if: always()
     needs: test
     runs-on: ubuntu-latest
@@ -401,17 +463,91 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci
+
+      # Downloads every 'report-shard-N' artifact under ./all-shards/report-shard-N/
       - uses: actions/download-artifact@v4
-        with: { path: all-shards, pattern: 'report-shard-*' }
-      - run: npx reporting-labs merge all-shards -o merged/
+        with:
+          path: all-shards
+          pattern: report-shard-*
+
+      - run: npx reporting-labs merge all-shards -o merged
+
+      # This is the artifact your team downloads and opens.
       - uses: actions/upload-artifact@v4
-        with: { name: merged-report, path: merged/, retention-days: 30 }
+        with:
+          name: merged-report
+          path: merged/
+          retention-days: 30
 ```
 
-**Notes:**
+Download the **merged-report** artifact from the run's summary page and open `index.html` locally.
 
-- The reporter always writes `report.json` alongside `index.html`, so `merge` just works. Turn it off with `emitJson: false` if you do not want it.
-- Not using shards? Ignore this section. The single-run report keeps working exactly as before.
+#### Jenkins
+
+Four shards run in parallel via a matrix pipeline, then a final stage merges. Copy-paste as `Jenkinsfile`:
+
+```groovy
+pipeline {
+  agent any
+  options { timestamps() }
+
+  stages {
+    stage('Install') {
+      steps {
+        sh 'npm ci'
+        sh 'npx playwright install --with-deps'
+      }
+    }
+
+    stage('Run shards in parallel') {
+      matrix {
+        axes {
+          axis { name 'SHARD'; values '1', '2', '3', '4' }
+        }
+        stages {
+          stage('Test') {
+            steps {
+              sh "npx playwright test --shard=${SHARD}/4"
+              // Save each shard's report so the merge stage can unpack it later.
+              stash name: "report-shard-${SHARD}", includes: 'reporting-labs/**'
+            }
+          }
+        }
+      }
+    }
+
+    stage('Merge into one report') {
+      steps {
+        sh 'rm -rf all-shards merged && mkdir -p all-shards'
+        script {
+          ['1', '2', '3', '4'].each { s ->
+            dir("all-shards/shard-${s}") { unstash "report-shard-${s}" }
+          }
+        }
+        // Unstash lands the folder as all-shards/shard-N/reporting-labs/... — flatten it.
+        sh '''
+          for d in all-shards/shard-*; do
+            mv "$d/reporting-labs/"* "$d/"
+            rmdir "$d/reporting-labs"
+          done
+        '''
+        sh 'npx reporting-labs merge all-shards -o merged'
+        archiveArtifacts artifacts: 'merged/**', allowEmptyArchive: false
+      }
+    }
+  }
+}
+```
+
+Jenkins blocks inline JavaScript inside the HTML Publisher by default (Playwright's own HTML report has the same limitation), so the fastest way to view the merged report is to download the `merged/` folder from the build's artifacts and open `index.html` locally. If a Jenkins admin can relax the policy in the script console with `System.setProperty("hudson.model.DirectoryBrowserSupport.CSP", "")`, you can also add a `publishHTML` step to open the report right from the build page.
+
+#### Troubleshooting
+
+- **`mv: reporting-labs: No such file or directory`.** The reporter did not run. Check `playwright.config.ts`: `reporter: [['list'], ['reporting-labs', reportingLabs]]`. Without that line, `npx playwright test` does not create the `reporting-labs/` folder.
+- **A shard reports "0 tests".** Playwright shards by spec file by default, so if you have fewer spec files than shards, some shards will be empty. Reduce the shard count, split large specs, or upgrade to Playwright 1.51+ and set `shardingMode: 'round-robin'` for per-test sharding. The merge still works either way.
+- **The Trend chart looks off after merging.** All shards read the same history file at startup, so the current run is recorded once by whichever shard writes last. On CI, cache the history file (see the GitHub Actions example above) so future runs pick it up.
+- **`merge` says "no report.json under ...".** The folder you pointed at does not contain a shard's report. `merge` accepts either individual shard folders (each with `report.json`) or one parent folder that has many shards as subfolders. Check that `report.json` actually exists inside — the reporter writes it on every run unless you set `emitJson: false`.
+- **Attachments broken in the merged report.** Screenshots are usually embedded inline as base64, so they always work. Videos and traces live in `merged/assets/shard-N-of-M/` — the merge rewrites paths so they resolve correctly. If a video does not play, open the merged folder locally (not from a Jenkins URL that strips inline JS).
 
 ### Slack, email, Teams: use your CI's own integration
 
