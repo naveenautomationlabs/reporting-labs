@@ -788,7 +788,43 @@ function graphsView(){
       chartCard('failure-categories',   'Failure categories',    'What kinds of failures are hurting the suite.',              chartFailureCategories),
       chartCard('duration-distribution','Duration distribution', 'How test durations are spread across the run.',              chartDurationHistogram),
       chartCard('trend-by-priority',    'Pass rate trend by priority', 'How each priority tier trends over the last runs.',   chartTrendByPriority),
+      chartCard('owner-leaderboard',    'Owner leaderboard',      'Failures and flakes ranked by owner. Add meta({owner:...}) to see this.', chartOwnerLeaderboard),
     ));
+}
+
+/* Chart 5: horizontal stacked bar per owner — total tests, failed vs flaky highlighted */
+function chartOwnerLeaderboard(){
+  const rows = new Map();
+  for(const t of data.tests){
+    const o = (t.meta.owner||'').toString().trim(); if(!o) continue;
+    let r = rows.get(o); if(!r){ r={owner:o, total:0, failed:0, flaky:0, passed:0, skipped:0}; rows.set(o,r); }
+    r.total++;
+    if(isFail(t.outcome)) r.failed++;
+    else if(t.outcome==='flaky') r.flaky++;
+    else if(t.outcome==='skipped') r.skipped++;
+    else if(t.outcome==='passed') r.passed++;
+  }
+  const list = [...rows.values()].sort((a,b)=> (b.failed - a.failed) || (b.flaky - a.flaky) || (b.total - a.total));
+  if(!list.length) return null;
+  const maxTotal = Math.max(...list.map(r=>r.total));
+  const W=520, rowH=28, gap=8, labW=110, barW=W-labW-70;
+  const H = list.length*(rowH+gap)+30;
+  const parts = list.map((r,i)=>{
+    const y=i*(rowH+gap)+14, scale=barW/maxTotal;
+    const passedW = r.passed*scale, flakyW = r.flaky*scale, failedW = r.failed*scale, skippedW = r.skipped*scale;
+    let x = labW;
+    const segs=[];
+    if(passedW>0){ segs.push('<rect x="'+x+'" y="'+y+'" width="'+passedW+'" height="'+rowH+'" fill="var(--pass)" rx="3"><title>'+gEsc(r.owner)+' · '+r.passed+' passed</title></rect>'); x+=passedW; }
+    if(flakyW>0){  segs.push('<rect x="'+x+'" y="'+y+'" width="'+flakyW+'"  height="'+rowH+'" fill="var(--flaky)"><title>'+gEsc(r.owner)+' · '+r.flaky+' flaky</title></rect>');   x+=flakyW; }
+    if(failedW>0){ segs.push('<rect x="'+x+'" y="'+y+'" width="'+failedW+'" height="'+rowH+'" fill="var(--fail)"><title>'+gEsc(r.owner)+' · '+r.failed+' failed</title></rect>');  x+=failedW; }
+    if(skippedW>0){segs.push('<rect x="'+x+'" y="'+y+'" width="'+skippedW+'" height="'+rowH+'" fill="var(--skip)"><title>'+gEsc(r.owner)+' · '+r.skipped+' skipped</title></rect>'); x+=skippedW; }
+    return '<text x="0" y="'+(y+rowH/2+4)+'" fill="var(--ink)" font-size="12" font-weight="600">'+gEsc(r.owner)+'</text>'+segs.join('')+
+      '<text x="'+(labW+barW+8)+'" y="'+(y+rowH/2+4)+'" fill="var(--ink-2)" font-size="12" font-variant-numeric="tabular-nums">'+r.total+'</text>';
+  }).join('');
+  const legendPairs = [['Passed','var(--pass)'],['Flaky','var(--flaky)'],['Failed','var(--fail)'],['Skipped','var(--skip)']];
+  const hasKind = { Passed:list.some(r=>r.passed>0), Flaky:list.some(r=>r.flaky>0), Failed:list.some(r=>r.failed>0), Skipped:list.some(r=>r.skipped>0) };
+  const legend = legendPairs.filter(([n])=>hasKind[n]).map(([n,c],i)=>'<g transform="translate('+(labW+i*90)+','+(H-4)+')"><rect width="10" height="10" y="-9" fill="'+c+'"/><text x="14" y="0" font-size="11" fill="var(--ink-2)">'+n+'</text></g>').join('');
+  return h('div',{class:'gchart-body',html:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+W+' '+(H+14)+'" width="100%">'+parts+legend+'</svg>'});
 }
 
 function chartCard(id, title, sub, chartFn){
@@ -866,7 +902,7 @@ function chartDurationHistogram(){
   const bars = counts.map((n,i)=>{
     const x=padL+i*(colW+gap), h=n/maxN*chartH, y=padT+chartH-h;
     return '<rect x="'+x+'" y="'+y+'" width="'+colW+'" height="'+h+'" fill="var(--accent)" rx="3"><title>'+buckets[i].label+' · '+n+' tests</title></rect>'+
-      '<text x="'+(x+colW/2)+'" y="'+(y-4)+'" text-anchor="middle" fill="var(--ink)" font-size="12" font-weight="600" font-variant-numeric="tabular-nums">'+n+'</text>'+
+      (n>0?'<text x="'+(x+colW/2)+'" y="'+(y-4)+'" text-anchor="middle" fill="var(--ink)" font-size="12" font-weight="600" font-variant-numeric="tabular-nums">'+n+'</text>':'')+
       '<text x="'+(x+colW/2)+'" y="'+(padT+chartH+22)+'" text-anchor="middle" fill="var(--ink-2)" font-size="12">'+buckets[i].label+'</text>';
   }).join('');
   return h('div',{class:'gchart-body',html:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+W+' '+H+'" width="100%">'+bars+'</svg>'});
