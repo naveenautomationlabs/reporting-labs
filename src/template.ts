@@ -628,6 +628,12 @@ a.btn{text-decoration:none}
 .skp{list-style:none;margin:0;padding:0} .skp li{border-top:1px solid var(--line)} .skp li:first-child{border-top:0}
 .skp button{width:100%;text-align:left;padding:8px 4px;display:flex;flex-direction:column;gap:2px}
 .skp .t{font-size:13px;font-weight:500;color:var(--ink)} .skp .r{font-size:12px;color:var(--ink-3)}
+.gchart .gchart-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.gchart .gchart-head h2{margin:0}
+.gchart .gchart-sub{color:var(--ink-3);font-size:12px;margin-top:4px}
+.gchart .gchart-body{margin-top:14px}
+.gchart .empty{padding:22px 0;color:var(--ink-3);text-align:center}
+.graphs-grid .card{background:var(--surface)}
 .kv.env{grid-template-columns:max-content 1fr;gap:8px 16px} .kv.env dt{font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding-top:1px} .kv.env dd{font:12.5px var(--mono);word-break:break-word} .kv.env a{color:var(--accent-2)}
 .hm-wrap{overflow-x:auto} .hm{border-collapse:separate;border-spacing:4px;font-size:12.5px;min-width:100%}
 .hm th{font-weight:600;color:var(--ink-2);text-align:left;padding:4px 8px;white-space:nowrap} .hm thead th{font:600 11px var(--mono);color:var(--ink-3);text-align:center;letter-spacing:.03em}
@@ -709,6 +715,7 @@ app.append(h('div',{class:'band'}, stripe(), header(), nav()),
   h('div',{class:'view','data-view':'tests'}, main()),
   h('div',{class:'view','data-view':'failures'}, h('div',{class:'view-pad'}, failuresView())),
   h('div',{class:'view','data-view':'api'}, h('div',{class:'view-pad'}, apiView())),
+  h('div',{class:'view','data-view':'graphs'}, graphsView()),
   hasTimelineView()? h('div',{class:'view','data-view':'timeline'}, h('div',{class:'view-pad'}, timelineView())) : null);
 select(state.selected || firstInteresting(), true);
 showView(state.view);
@@ -716,7 +723,7 @@ window.addEventListener('keydown', e=>{
   if(e.key==='Escape'){const lb=$('.lb'); if(lb) lb.remove(); return;}
   const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select'||tag==='textarea') return;
   if(e.key==='/'){ e.preventDefault(); showView('tests'); $('.tools input').focus(); return; }
-  const vk={'1':'overview','2':'tests','3':'failures','4':'api','5':'timeline'}[e.key]; if(vk&&document.querySelector('.nav button[data-view='+vk+']')){ showView(vk); return; }
+  const vk={'1':'overview','2':'tests','3':'failures','4':'api','5':'graphs','6':'timeline'}[e.key]; if(vk&&document.querySelector('.nav button[data-view='+vk+']')){ showView(vk); return; }
   if(e.key==='f'){ state.status=state.status==='failed'?'all':'failed'; refresh(); return; }
   if(e.key==='j'||e.key==='k'){ const ids=[...document.querySelectorAll('.item')].map(i=>i.dataset.id); if(!ids.length) return; let i=ids.indexOf(state.selected); i=e.key==='j'?Math.min(ids.length-1,i+1):Math.max(0,i-1); select(ids[i]); }
 });
@@ -731,7 +738,7 @@ function showView(v){
 }
 function nav(){
   const s=data.stats, f=s.failed+s.timedOut+s.interrupted, apiN=data.tests.reduce((a,t)=>a+t.results.reduce((b,r)=>b+r.api.length,0),0);
-  const tabs=[['overview','Overview',null],['tests','Tests',s.total],['failures','Failures',f+s.flaky,f>0],['api','API',apiN],['timeline','Timeline',null]].filter(t=>(t[0]!=='api'||apiN>0)&&(t[0]!=='timeline'||hasTimelineView()));
+  const tabs=[['overview','Overview',null],['tests','Tests',s.total],['failures','Failures',f+s.flaky,f>0],['api','API',apiN],['graphs','Graphs',null],['timeline','Timeline',null]].filter(t=>(t[0]!=='api'||apiN>0)&&(t[0]!=='timeline'||hasTimelineView())&&(t[0]!=='graphs'||data.tests.length>0));
   return h('nav',{class:'nav'}, h('div',{}, tabs.map(([v,l,n,bad])=>h('button',{'data-view':v,'aria-selected':state.view===v,onclick:()=>showView(v)}, l, n!=null?h('span',{class:'cnt'+(bad?' bad':'')},n):null))));
 }
 function failuresView(){
@@ -771,6 +778,174 @@ function timelineView(){
   return h('div',{class:'grid'}, cards);
 }
 function hasTimelineView(){ return data.options.widgets.timeline!==false || data.options.widgets.durations!==false; }
+
+/* ---------- Graphs tab: 4 presentation-ready charts with PNG download ---------- */
+function gEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function graphsView(){
+  return h('div',{class:'view-pad'},
+    h('div',{class:'grid graphs-grid'},
+      chartCard('outcomes-by-priority', 'Outcomes by priority', 'Stacked pass / fail / flaky / skipped for each priority tier.', chartPriorityOutcome),
+      chartCard('failure-categories',   'Failure categories',    'What kinds of failures are hurting the suite.',              chartFailureCategories),
+      chartCard('duration-distribution','Duration distribution', 'How test durations are spread across the run.',              chartDurationHistogram),
+      chartCard('trend-by-priority',    'Pass rate trend by priority', 'How each priority tier trends over the last runs.',   chartTrendByPriority),
+    ));
+}
+
+function chartCard(id, title, sub, chartFn){
+  const chart = chartFn();
+  const empty = !chart;
+  return h('div',{class:'card w6 gchart','data-chart':id},
+    h('div',{class:'gchart-head'},
+      h('div',{},
+        h('h2',{},title),
+        h('div',{class:'gchart-sub'},sub)),
+      empty? null : h('button',{class:'btn',title:'Download this chart as a PNG image',
+        onclick:e=>downloadChartPng(id, title, e.currentTarget)},'Download PNG')),
+    empty? h('div',{class:'empty'},'Not enough data yet. Add meta({ priority }) or run the suite once more.') : chart);
+}
+
+/* Chart 1: horizontal stacked bar per priority (P0..P4 in order, plus 'no priority') */
+function chartPriorityOutcome(){
+  const order = ['P0','P1','P2','P3','P4'];
+  const outs  = ['passed','flaky','failed','timedOut','interrupted','skipped'];
+  const colors= {passed:'var(--pass)', flaky:'var(--flaky)', failed:'var(--fail)', timedOut:'var(--fail)', interrupted:'var(--fail)', skipped:'var(--skip)'};
+  const buckets = new Map();
+  const put=(k,o)=>{ let m=buckets.get(k); if(!m){ m={}; for(const x of outs) m[x]=0; buckets.set(k,m); } m[o]=(m[o]||0)+1; };
+  for(const t of data.tests){ const p=(t.meta.priority||'').toString().trim().toUpperCase(); put(order.includes(p)? p : 'No priority', t.outcome); }
+  const rows = [...order.filter(k=>buckets.has(k)), ...(buckets.has('No priority')?['No priority']:[])];
+  if(!rows.length) return null;
+  const maxN = Math.max(...rows.map(r=>outs.reduce((a,o)=>a+buckets.get(r)[o],0)));
+  const W=520, rowH=34, gap=10, labW=90, barW=W-labW-70;
+  const H = rows.length*(rowH+gap)+30;
+  const parts = rows.map((r,i)=>{
+    const y=i*(rowH+gap)+18, m=buckets.get(r), tot=outs.reduce((a,o)=>a+m[o],0), scale=barW/maxN;
+    let x=labW;
+    const segs=[]; for(const o of outs){ const w=m[o]*scale; if(w<=0) continue; segs.push('<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+rowH+'" fill="'+colors[o]+'" data-outcome="'+o+'"><title>'+r+' · '+label[o]+' '+m[o]+'</title></rect>'); x+=w; }
+    return '<text x="0" y="'+(y+rowH/2+4)+'" fill="var(--ink)" font-size="12" font-weight="600">'+r+'</text>'+
+      segs.join('')+
+      '<text x="'+(labW+barW+8)+'" y="'+(y+rowH/2+4)+'" fill="var(--ink-2)" font-size="12" font-variant-numeric="tabular-nums">'+tot+'</text>';
+  }).join('');
+  const legend = outs.filter(o=>rows.some(r=>buckets.get(r)[o]>0)).map(o=>'<g><rect width="10" height="10" fill="'+colors[o]+'"/><text x="14" y="9" fill="var(--ink-2)" font-size="11">'+label[o]+'</text></g>');
+  const legendSvg = '<g transform="translate('+labW+','+(H-2)+')">'+legend.map((g,i)=>'<g transform="translate('+(i*90)+',0)">'+g.slice(3,-4)+'</g>').join('')+'</g>';
+  return h('div',{class:'gchart-body',html:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+W+' '+(H+18)+'" width="100%">'+parts+legendSvg+'</svg>'});
+}
+
+/* Chart 2: horizontal bar of the 18 error 'kinds' from explainError, sorted by count desc */
+function chartFailureCategories(){
+  const counts = new Map();
+  for(const t of data.tests){ const r=t.results[t.results.length-1], e=r&&r.errors[0]; if(!e||!e.explain) continue; const k=e.explain.label||e.explain.kind||'other'; counts.set(k,(counts.get(k)||0)+1); }
+  const rows=[...counts.entries()].sort((a,b)=>b[1]-a[1]);
+  if(!rows.length) return null;
+  const maxN = rows[0][1];
+  const W=520, rowH=22, gap=6, labW=200, barW=W-labW-40;
+  const H = rows.length*(rowH+gap)+8;
+  const parts = rows.map(([k,n],i)=>{
+    const y=i*(rowH+gap)+8, w=Math.max(2, n/maxN*barW);
+    return '<text x="0" y="'+(y+rowH/2+4)+'" fill="var(--ink)" font-size="12">'+gEsc(k)+'</text>'+
+      '<rect x="'+labW+'" y="'+y+'" width="'+w+'" height="'+rowH+'" fill="var(--fail)" rx="3"><title>'+gEsc(k)+' · '+n+'</title></rect>'+
+      '<text x="'+(labW+w+6)+'" y="'+(y+rowH/2+4)+'" fill="var(--ink-2)" font-size="12" font-variant-numeric="tabular-nums">'+n+'</text>';
+  }).join('');
+  return h('div',{class:'gchart-body',html:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+W+' '+H+'" width="100%">'+parts+'</svg>'});
+}
+
+/* Chart 3: duration histogram — bars for 5 buckets across all tests */
+function chartDurationHistogram(){
+  if(!data.tests.length) return null;
+  const buckets = [
+    {label:'< 1s',   min:0,    max:1000},
+    {label:'1-3s',   min:1000, max:3000},
+    {label:'3-10s',  min:3000, max:10000},
+    {label:'10-30s', min:10000,max:30000},
+    {label:'30s+',   min:30000,max:Infinity},
+  ];
+  const counts = buckets.map(()=>0);
+  for(const t of data.tests){ const d=t.duration||0; for(let i=0;i<buckets.length;i++){ if(d>=buckets[i].min && d<buckets[i].max){ counts[i]++; break; } } }
+  const maxN = Math.max(1,...counts);
+  const W=520, colW=80, gap=16, padL=32, padT=24, padB=36, chartH=180;
+  const H = chartH+padT+padB;
+  const bars = counts.map((n,i)=>{
+    const x=padL+i*(colW+gap), h=n/maxN*chartH, y=padT+chartH-h;
+    return '<rect x="'+x+'" y="'+y+'" width="'+colW+'" height="'+h+'" fill="var(--accent)" rx="3"><title>'+buckets[i].label+' · '+n+' tests</title></rect>'+
+      '<text x="'+(x+colW/2)+'" y="'+(y-4)+'" text-anchor="middle" fill="var(--ink)" font-size="12" font-weight="600" font-variant-numeric="tabular-nums">'+n+'</text>'+
+      '<text x="'+(x+colW/2)+'" y="'+(padT+chartH+22)+'" text-anchor="middle" fill="var(--ink-2)" font-size="12">'+buckets[i].label+'</text>';
+  }).join('');
+  return h('div',{class:'gchart-body',html:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+W+' '+H+'" width="100%">'+bars+'</svg>'});
+}
+
+/* Chart 4: multi-line — pass rate per priority over the last N history entries */
+function chartTrendByPriority(){
+  const hist = data.history || [];
+  if(hist.length < 2) return null;
+  const orders = ['P0','P1','P2','P3','P4'];
+  const seenPri = new Set();
+  for(const t of data.tests){ const p=(t.meta.priority||'').toString().trim().toUpperCase(); if(orders.includes(p)) seenPri.add(p); }
+  const priorities = orders.filter(p=>seenPri.has(p));
+  if(!priorities.length) return null;
+  const colors = { P0:'#E5405E', P1:'#F59E0B', P2:'#3B82F6', P3:'#8B95A5', P4:'#6B7280' };
+  const currentTests = new Map(data.tests.map(t=>[t.key, (t.meta.priority||'').toString().trim().toUpperCase()]));
+  const series = priorities.map(pri=>{
+    const points = hist.map(e=>{
+      let p=0,f=0; for(const [key,val] of Object.entries(e.tests||{})){ if(currentTests.get(key)!==pri) continue; const outcome=val[0]||''; if(outcome==='p') p++; else if(outcome==='f'||outcome==='t'||outcome==='i') f++; }
+      const ran = p+f; return ran? Math.round(p/ran*100) : null;
+    });
+    return { pri, color: colors[pri]||'#888', points };
+  }).filter(sr=>sr.points.some(v=>v!==null));
+  if(!series.length) return null;
+  const W=520, padL=36, padR=24, padT=16, padB=28, chartH=180;
+  const H = chartH+padT+padB;
+  const N = hist.length;
+  const xAt = i => padL + (N===1? 0 : i*((W-padL-padR)/(N-1)));
+  const yAt = pct => padT + (100-pct)/100*chartH;
+  const grid = [0,25,50,75,100].map(y=>'<line x1="'+padL+'" x2="'+(W-padR)+'" y1="'+yAt(y)+'" y2="'+yAt(y)+'" stroke="var(--line)" stroke-dasharray="2 3"/><text x="'+(padL-6)+'" y="'+(yAt(y)+3)+'" text-anchor="end" font-size="10" fill="var(--ink-3)">'+y+'%</text>').join('');
+  const lines = series.map(sr=>{
+    const d = sr.points.map((v,i)=> v===null? null : (i===0?'M':'L')+xAt(i)+' '+yAt(v)).filter(Boolean).join(' ');
+    const dots = sr.points.map((v,i)=> v===null? '' : '<circle cx="'+xAt(i)+'" cy="'+yAt(v)+'" r="2.5" fill="'+sr.color+'"><title>'+sr.pri+' · '+v+'% at run '+(i+1)+'</title></circle>').join('');
+    return '<path d="'+d+'" fill="none" stroke="'+sr.color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'+dots;
+  }).join('');
+  const legend = series.map((sr,i)=>'<g transform="translate('+(padL+i*70)+','+(H-8)+')"><rect width="10" height="10" y="-9" fill="'+sr.color+'"/><text x="14" y="0" font-size="11" fill="var(--ink-2)">'+sr.pri+'</text></g>').join('');
+  return h('div',{class:'gchart-body',html:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+W+' '+H+'" width="100%">'+grid+lines+legend+'</svg>'});
+}
+
+/* PNG download: serialize the chart's SVG, draw onto a canvas at 2x, trigger download. */
+function downloadChartPng(chartId, title, btn){
+  const card = document.querySelector('[data-chart="'+chartId+'"]');
+  const src  = card && card.querySelector('svg');
+  if(!src) return;
+  const label = btn.textContent; btn.textContent = 'Rendering…'; btn.disabled = true;
+  const clone = src.cloneNode(true);
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  // Inline computed colors so CSS var() references resolve inside the standalone SVG.
+  const cs = getComputedStyle(document.documentElement);
+  const varRe = /var\(--([a-z0-9-]+)\)/gi;
+  const walk = el => { for(const a of ['fill','stroke']){ const v=el.getAttribute(a); if(v && varRe.test(v)){ el.setAttribute(a, v.replace(varRe,(_,n)=>cs.getPropertyValue('--'+n).trim() || 'currentColor')); } } for(const c of el.children) walk(c); };
+  walk(clone);
+  // Ensure the SVG has explicit width/height (in px) for correct raster size.
+  const vb = clone.viewBox && clone.viewBox.baseVal;
+  const w = (vb && vb.width) || 800, hpx = (vb && vb.height) || 400;
+  const scale = 2;
+  clone.setAttribute('width', w); clone.setAttribute('height', hpx);
+  const xml = new XMLSerializer().serializeToString(clone);
+  const svgBlob = new Blob([xml], {type:'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = w*scale; canvas.height = hpx*scale;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = cs.getPropertyValue('--surface').trim() || '#ffffff';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(b => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(b); a.download = 'reporting-labs-'+chartId+'.png'; a.click();
+      URL.revokeObjectURL(a.href);
+      btn.textContent = label; btn.disabled = false;
+    }, 'image/png');
+  };
+  img.onerror = () => { btn.textContent = 'PNG failed'; btn.disabled = false; URL.revokeObjectURL(url); };
+  img.src = url;
+}
 function stripe(){
   const s=data.stats, f=s.failed+s.timedOut+s.interrupted, tot=s.total||1;
   return h('div',{class:'stripe','aria-hidden':'true'}, [['passed',s.passed],['flaky',s.flaky],['failed',f],['skipped',s.skipped]].filter(x=>x[1]).map(([k,n])=>h('i',{style:'width:'+(n/tot*100)+'%;background:'+colorOf(k)})));
