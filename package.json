@@ -43,7 +43,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node bin/build-template.js",
     "demo": "npm run build && cd example && npx playwright test; cd .. && echo 'open example/reporting-labs/index.html'",
     "prepublishOnly": "npm run build",
     "pack:check": "npm run build && npm pack --dry-run"
