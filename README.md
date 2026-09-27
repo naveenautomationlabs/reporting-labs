@@ -89,14 +89,27 @@ One line per test. With this the report can rank failures by priority, group the
 - Known keys: `priority`, `severity`, `owner`, `feature`, `epic`, `story`, `issue`, `component`, `team`. Any other key you pass is shown too.
 - Your Playwright tags like `@sanity` or `@regression` stay as they are and still show on the test.
 - To make story and epic keys clickable, set `links` in the config: `links: { story: 'https://yourteam.atlassian.net/browse/{id}' }`. Several ids (`story: ['SHOP-1', 'SHOP-2']`) become one link each.
-- A link that needs more than the shown value (ALM Octane / ValueEdge, a TMS with a project segment) takes an object. Placeholders name the fields of the object you pass to `meta()`; `display` is what the report shows, the other fields only build the URL:
+- A link that needs more than the shown value (ALM Octane / ValueEdge, a TMS with a project segment) takes an object. Placeholders name the fields you pass from the test; `display` is what the report shows, the other fields only build the URL:
 
   ```ts
-  // playwright.config.ts
-  links: { octaneTestCase: { url: 'https://oss.valueedge.com/ui/?p={p}#/entity-navigation?entityType=test&id={id}', display: '{id}' } }
-  // in the test
-  meta({ octaneTestCase: { id: '58966', p: '4001/14014' } });   // report shows "octaneTestCase 58966", p is only in the URL
+  // reporting-labs.config.ts
+  links: {
+    octaneTestCase: {
+      url: 'https://oss.valueedge.com/ui/?p={p}#/entity-navigation?entityType=test&id={id}',
+      display: '{id}',
+    },
+  },
   ```
+
+  ```ts
+  // tests/notifications.spec.ts
+  test('TC003 - manual trigger with all notifications disabled', async ({ page }) => {
+    meta({ priority: 'P1', owner: 'chetan', octaneTestCase: { id: '58966', p: '4001/14014' } });
+    // ... your test as usual
+  });
+  ```
+
+  The test shows a chip **octaneTestCase 58966**; clicking it opens the full URL. `p` never appears in the report and can differ per test.
 - Forgot one? After every run the console lists the tests that have no `meta()`, with file and line. Turn it off with `warnMissingMeta: false`.
 - `priority`, `severity`, `feature` and `owner` each get a tab in the Breakdown chart and a filter on the Tests page. Want the same for your own key, say `meta({ team: 'web' })`? Add it to `dimensions` in the config: `dimensions: ['priority', 'severity', 'feature', 'owner', 'team']`.
 
