@@ -89,7 +89,7 @@ One line per test. With this the report can rank failures by priority, group the
 - Known keys: `priority`, `severity`, `owner`, `feature`, `epic`, `story`, `issue`, `component`, `team`. Any other key you pass is shown too.
 - Your Playwright tags like `@sanity` or `@regression` stay as they are and still show on the test.
 - To make story and epic keys clickable, set `links` in the config: `links: { story: 'https://yourteam.atlassian.net/browse/{id}' }`. Several ids (`story: ['SHOP-1', 'SHOP-2']`) become one link each.
-- A link that needs more than the shown value (ALM Octane / ValueEdge, a TMS with a project segment) takes an object. Placeholders name the fields you pass from the test; `display` is what the report shows, the other fields only build the URL:
+- A link whose URL needs more than the shown value (a workspace, a project, an organisation) takes an object. Any tool, any URL shape: every `{placeholder}` in `url` is filled from the object you pass in `meta()`, `display` is what the report shows (default `{id}`), the other fields only build the URL. ALM Octane / ValueEdge as an example:
 
   ```ts
   // reporting-labs.config.ts
@@ -109,7 +109,7 @@ One line per test. With this the report can rank failures by priority, group the
   });
   ```
 
-  The test shows a chip **octaneTestCase 58966**; clicking it opens the full URL. `p` never appears in the report and can differ per test.
+  The test shows a chip **octaneTestCase 58966**; clicking it opens the full URL. `p` never appears in the report and can differ per test. The same shape covers Azure DevOps (`url: 'https://dev.azure.com/{org}/{project}/_workitems/edit/{id}', display: 'AB#{id}'`) or any in-house tool. Jira, TestRail, Xray and Zephyr need only the plain `{id}` string.
 - Forgot one? After every run the console lists the tests that have no `meta()`, with file and line. Turn it off with `warnMissingMeta: false`.
 - `priority`, `severity`, `feature` and `owner` each get a tab in the Breakdown chart and a filter on the Tests page. Want the same for your own key, say `meta({ team: 'web' })`? Add it to `dimensions` in the config: `dimensions: ['priority', 'severity', 'feature', 'owner', 'team']`.
 
