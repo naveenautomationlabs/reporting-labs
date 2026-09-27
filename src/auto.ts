@@ -111,22 +111,49 @@ function patchContext(ctx: ContextLike) {
   proto[PATCHED] = true;
 }
 
+/** Wrap `obj[name]` (found on the prototype chain) so `after(result)` sees each resolved return value. */
+function wrapAsync(obj: AnyRecord, name: string, after: (result: any) => void) {
+  let proto: AnyRecord | null = obj;
+  while (proto && !Object.prototype.hasOwnProperty.call(proto, name)) proto = Object.getPrototypeOf(proto);
+  if (!proto || typeof proto[name] !== 'function' || proto[name][PATCHED]) return;
+  const original = proto[name];
+  const wrapped = async function (this: unknown, ...args: unknown[]) {
+    const result = await original.apply(this, args);
+    try { after(result); } catch { /* never break the caller */ }
+    return result;
+  };
+  (wrapped as AnyRecord)[PATCHED] = true;
+  proto[name] = wrapped;
+}
+
+/**
+ * Hook the places an APIRequestContext can come from, and patch the shared prototype the
+ * first time one shows up:
+ *   - playwright.request.newContext()        (the `request` fixture, manual contexts)
+ *   - browser.newContext() / launchPersistentContext() / connect*()   (page.request, context.request)
+ *
+ * No context is created here. An earlier version made a throwaway context at import time and
+ * disposed it; when that dispose raced with the test runner's tracing bookkeeping the runner
+ * tried to start a trace on a closed context and every test failed with
+ * "apiRequestContext._wrapApiCall: Target page, context or browser has been closed".
+ */
 function install() {
   let api: AnyRecord;
-  try { api = pw().request; } catch { return; }
-  if (!api || typeof api.newContext !== 'function') return;
-  const apiProto = Object.getPrototypeOf(api);
-  if (apiProto[PATCHED]) return;
-  apiProto[PATCHED] = true;
-  // Any context created later through request.newContext() patches the shared prototype on the spot.
-  const newContext = apiProto.newContext;
-  apiProto.newContext = async function patchedNewContext(this: unknown, ...args: unknown[]) {
-    const ctx: ContextLike = await newContext.apply(this, args);
-    patchContext(ctx);
-    return ctx;
+  try { api = pw(); } catch { return; }
+  const { request, chromium, firefox, webkit } = api;
+  if (request && typeof request.newContext === 'function') wrapAsync(request, 'newContext', ctx => patchContext(ctx));
+  const onBrowser = (browser: AnyRecord) => {
+    if (!browser || typeof browser.newContext !== 'function') return;
+    wrapAsync(browser, 'newContext', ctx => ctx?.request && patchContext(ctx.request));
+    try { for (const ctx of browser.contexts()) if (ctx?.request) patchContext(ctx.request); } catch { /* not a browser */ }
   };
-  // And do it right away with a throwaway context, so page.request works even if no request fixture is ever created.
-  api.newContext().then((ctx: ContextLike) => { patchContext(ctx); return ctx.dispose(); }).catch(() => { /* not in a Playwright process */ });
+  for (const bt of [chromium, firefox, webkit]) {
+    if (!bt) continue;
+    wrapAsync(bt, 'launch', onBrowser);
+    wrapAsync(bt, 'connect', onBrowser);
+    wrapAsync(bt, 'connectOverCDP', onBrowser);
+    wrapAsync(bt, 'launchPersistentContext', ctx => ctx?.request && patchContext(ctx.request));
+  }
 }
 
 install();

@@ -68,8 +68,14 @@ export interface ReportingLabsOptions {
   /**
    * Turn meta values into links. Key = meta key (story, epic, ticket, issue, jira...), value = URL template with {id}.
    * e.g. { story: 'https://acme.atlassian.net/browse/{id}', epic: 'https://acme.atlassian.net/browse/{id}' }
+   *
+   * A link that needs more than the displayed value takes an object. Placeholders name the fields of the
+   * object passed to meta(); `display` (default '{id}') is what the report shows, the rest only builds the URL:
+   *   links: { octaneTestCase: { url: 'https://oss.valueedge.com/ui/?p={p}#/entity-navigation?entityType=test&id={id}', display: '{id}' } }
+   *   meta({ octaneTestCase: { id: '58966', p: '4001/14014' } })
+   * The report shows "octaneTestCase 58966", clicking it opens the full URL; p is never shown.
    */
-  links?: Record<string, string>;
+  links?: Record<string, string | LinkTemplate>;
   /** Keys (case-insensitive substrings) whose values are masked in test data and API panels. */
   maskKeys?: string[];
   /** Keep a rolling run history next to the report and draw a trend chart. Per-test outcomes are stored too, which powers new-vs-known failures, flaky history and duration regressions. */
@@ -80,6 +86,14 @@ export interface ReportingLabsOptions {
   editorLinks?: boolean;
   /** Style Given/When/Then steps as Gherkin and label describe blocks as Features/Scenarios. Default: auto-detect */
   bdd?: boolean;
+}
+
+/** A link built from several fields of a meta() object. */
+export interface LinkTemplate {
+  /** URL with {field} placeholders, e.g. 'https://tms.example.com/{project}/cases/{id}'. */
+  url: string;
+  /** What the report shows for this meta key, with the same placeholders. Default '{id}'. */
+  display?: string;
 }
 
 /** Lets you type a known value and still accept any string. */
@@ -103,14 +117,14 @@ export interface TestMeta extends CustomMeta {
   feature?: string;
   /** Epic key, e.g. 'EPIC-18'. Becomes a link when `links.epic` is configured. */
   epic?: string;
-  /** User story key, e.g. 'SHOP-250'. Becomes a link when `links.story` is configured. */
-  story?: string;
-  /** Bug / issue key this test guards against, e.g. 'PROMO-118'. */
-  issue?: string;
+  /** User story key, e.g. 'SHOP-250', or several. Becomes a link when `links.story` is configured. */
+  story?: string | string[];
+  /** Bug / issue key this test guards against, e.g. 'PROMO-118', or several. */
+  issue?: string | string[];
   /** Test case id in your TCM tool (TestRail, Xray, Zephyr...). */
   testCaseId?: string;
-  /** Free-form tags or any other key you like. */
-  [key: string]: string | number | undefined;
+  /** Free-form tags or any other key you like. An object holds the fields of a multi-parameter link, see `links`. */
+  [key: string]: string | number | (string | number)[] | Record<string, string | number> | undefined;
 }
 /** Empty by default; augment it to add typed keys of your own. */
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -194,6 +208,8 @@ export interface TestData {
   annotations: { type: string; description?: string }[];
   /** extracted dimension values, e.g. { priority: 'P1', severity: 'critical' } */
   meta: Record<string, string>;
+  /** Ready-made hrefs for meta keys whose link needed more than the displayed value (object meta + LinkTemplate). */
+  links?: Record<string, string>;
   outcome: Status;
   duration: number;
   results: ResultData[];

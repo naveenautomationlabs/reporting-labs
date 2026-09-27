@@ -88,7 +88,15 @@ One line per test. With this the report can rank failures by priority, group the
 
 - Known keys: `priority`, `severity`, `owner`, `feature`, `epic`, `story`, `issue`, `component`, `team`. Any other key you pass is shown too.
 - Your Playwright tags like `@sanity` or `@regression` stay as they are and still show on the test.
-- To make story and epic keys clickable, set `links` in the config: `links: { story: 'https://yourteam.atlassian.net/browse/{id}' }`.
+- To make story and epic keys clickable, set `links` in the config: `links: { story: 'https://yourteam.atlassian.net/browse/{id}' }`. Several ids (`story: ['SHOP-1', 'SHOP-2']`) become one link each.
+- A link that needs more than the shown value (ALM Octane / ValueEdge, a TMS with a project segment) takes an object. Placeholders name the fields of the object you pass to `meta()`; `display` is what the report shows, the other fields only build the URL:
+
+  ```ts
+  // playwright.config.ts
+  links: { octaneTestCase: { url: 'https://oss.valueedge.com/ui/?p={p}#/entity-navigation?entityType=test&id={id}', display: '{id}' } }
+  // in the test
+  meta({ octaneTestCase: { id: '58966', p: '4001/14014' } });   // report shows "octaneTestCase 58966", p is only in the URL
+  ```
 - Forgot one? After every run the console lists the tests that have no `meta()`, with file and line. Turn it off with `warnMissingMeta: false`.
 - `priority`, `severity`, `feature` and `owner` each get a tab in the Breakdown chart and a filter on the Tests page. Want the same for your own key, say `meta({ team: 'web' })`? Add it to `dimensions` in the config: `dimensions: ['priority', 'severity', 'feature', 'owner', 'team']`.
 
@@ -284,7 +292,7 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `project` | – | `{ name, version, team, url }` shown under the title |
 | `metadata` | `{}` | Chips in the header, e.g. `{ env: 'staging', build: '#1842' }`. `build` labels the run in the trend; in CI the run number is used when it is not set |
 | `env` | – | Extra rows on the Environment card |
-| `links` | `{}` | Turn meta keys into links. `{id}` is replaced by the value |
+| `links` | `{}` | Turn meta keys into links. `{id}` is replaced by the value. An object `{ url, display }` builds the URL from several fields of an object passed to `meta()`, see below |
 | `maskKeys` | `[]` | Extra keys to mask as `****` |
 | `dimensions` | `['priority','severity','feature','owner']` | Which `meta()` keys get a tab in the Breakdown chart and a dropdown filter on the Tests page. Add your own key, e.g. `'team'`, to get a chart for it |
 | `dimensionOrder` | P0…P4, blocker…trivial | The order values appear in those charts and filters. Only needed for your own values, e.g. `{ severity: ['high','medium','low'] }` |
