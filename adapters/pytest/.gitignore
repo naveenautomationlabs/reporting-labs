@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Report output and run history made by local runs
+reporting-labs/
+reporting-labs.history.json
+
+# TypeScript contract check
+tools/node_modules/
+tools/.out/

@@ -1,0 +1,14 @@
+{
+  "title": "Shop API tests",
+  "project": { "name": "Shop API", "version": "2.4.0", "team": "QA Platform" },
+  "metadata": { "env": "local" },
+  "links": {
+    "story": "https://example.atlassian.net/browse/{id}",
+    "issue": "https://github.com/example/shop/issues/{id}"
+  },
+  "dimensions": ["priority", "severity", "feature", "owner"],
+  "maskKeys": ["x-tenant-id"],
+  "env": { "API": "local fake shop API (shop_api.py)" },
+  "open": "on-failure",
+  "history": { "keep": 30 }
+}
