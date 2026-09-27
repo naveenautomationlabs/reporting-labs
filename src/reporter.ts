@@ -9,7 +9,7 @@ import { ReportingLabsOptions, ReportData, TestData, ResultData, StepData, Attac
 import { renderHtml } from './template';
 import { makeMasker, parseCsv } from './mask';
 import { explainError } from './explain';
-import type { HistoryEntry } from './types';
+import type { HistoryEntry, LinkTemplate } from './types';
 
 const DEFAULT_EMBED_LIMIT = 2 * 1024 * 1024;
 
@@ -84,6 +84,7 @@ export default class ReportingLabsReporter implements Reporter {
       const last = test.results[test.results.length - 1];
       const resultAnn = ((last as any)?.annotations ?? []) as { type: string; description?: string }[];
       const annotations = [...test.annotations, ...resultAnn.filter(a => !test.annotations.some(b => b.type === a.type && b.description === a.description))];
+      const extracted = this.extractMeta(test);
       tests.push({
         id: test.id,
         key: `${project}::${file}::${[...titlePath, test.title].join(' › ')}${test.repeatEachIndex ? ' #' + (test.repeatEachIndex + 1) : ''}`,
@@ -95,7 +96,8 @@ export default class ReportingLabsReporter implements Reporter {
         project,
         tags: test.tags,
         annotations,
-        meta: this.extractMeta(test),
+        meta: extracted.meta,
+        links: Object.keys(extracted.links).length ? extracted.links : undefined,
         outcome,
         expectedFailure,
         note,
@@ -168,7 +170,7 @@ export default class ReportingLabsReporter implements Reporter {
           ...(this.options.dimensionOrder ?? {}),
         },
         project: this.options.project,
-        links: this.options.links ?? {},
+        links: this.linkUrls(),
         customCss: this.options.customCss ?? '',
         editorLinks: this.options.editorLinks ?? !process.env.CI,
       },
@@ -296,10 +298,33 @@ export default class ReportingLabsReporter implements Reporter {
     return [...new Set([...this.dimensions(), ...META_KEYS, ...Object.keys(this.options.links ?? {}).map(k => k.toLowerCase())])].filter(k => k !== '*');
   }
 
-  /** Pull meta values (priority, owner, story, epic...) from annotations and tags. */
-  private extractMeta(test: TestCase): Record<string, string> {
+  /** The link template for a (lower-cased) meta key, falling back to '*'. */
+  private linkTemplate(key: string): string | LinkTemplate | undefined {
+    let star: string | LinkTemplate | undefined;
+    for (const [k, v] of Object.entries(this.options.links ?? {})) {
+      if (k.toLowerCase() === key) return v;
+      if (k === '*') star = v;
+    }
+    return star;
+  }
+
+  /** `links` reduced to URL templates, the shape the template expects. */
+  private linkUrls(): Record<string, string> {
+    const out: Record<string, string> = {};
+    // Meta keys are lower-cased on the way in, so link keys must be too (links: { testCaseId } did not match before).
+    for (const [k, v] of Object.entries(this.options.links ?? {})) out[k.toLowerCase()] = typeof v === 'string' ? v : v.url;
+    return out;
+  }
+
+  /**
+   * Pull meta values (priority, owner, story, epic...) from annotations and tags.
+   * An object value (meta({ octaneTestCase: { id, p } })) is folded to its display text and, when the key has a
+   * link template, to a ready-made href in `links`; the other fields never show in the report.
+   */
+  private extractMeta(test: TestCase): { meta: Record<string, string>; links: Record<string, string> } {
     const dims = this.metaKeys();
     const meta: Record<string, string> = {};
+    const links: Record<string, string> = {};
     // Tags first (describe-level, then test-level), annotations last so a test can override its describe's tags.
     for (const raw of test.tags) {
       const tag = raw.replace(/^@/, '');
@@ -310,9 +335,17 @@ export default class ReportingLabsReporter implements Reporter {
     }
     for (const a of test.annotations) {
       const k = a.type.toLowerCase();
-      if (dims.includes(k) && a.description) meta[k] = a.description;
+      if (!dims.includes(k) || !a.description) continue;
+      const fields = parseObject(a.description);
+      if (!fields) { meta[k] = a.description; continue; }
+      const tpl = this.linkTemplate(k);
+      const display = typeof tpl === 'object' && tpl.display ? tpl.display : '{id}';
+      const shown = fill(display, fields, false);
+      meta[k] = shown || String(fields.id ?? Object.values(fields)[0] ?? '');
+      const url = typeof tpl === 'string' ? tpl : tpl?.url;
+      if (url) links[k] = fill(url, fields, true);
     }
-    return meta;
+    return { meta, links };
   }
 
   /** A local image file (path relative to the config) is embedded as a data URI so the report stays self-contained. URLs and data URIs pass through. */
@@ -498,4 +531,20 @@ function stripAnsi(s: string) {
 }
 function sanitize(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+}
+
+/** A JSON object literal in an annotation description (what meta() writes for object values), else undefined. */
+function parseObject(text: string): Record<string, unknown> | undefined {
+  if (!text.startsWith('{')) return undefined;
+  try { const v = JSON.parse(text); return v && typeof v === 'object' && !Array.isArray(v) ? v : undefined; } catch { return undefined; }
+}
+
+/** Replace {field} placeholders; for URLs each value is encoded except '/' and ':' so a value like '4001/14014' survives. */
+function fill(template: string, fields: Record<string, unknown>, forUrl: boolean): string {
+  return template.replace(/\{(\w+)\}/g, (_m, name: string) => {
+    const v = fields[name];
+    if (v === undefined || v === null) return '';
+    const text = String(v);
+    return forUrl ? encodeURIComponent(text).replace(/%2F/gi, '/').replace(/%3A/gi, ':') : text;
+  });
 }

@@ -12,12 +12,18 @@ function info() {
  *
  * @example
  * meta({ priority: 'P1', severity: 'critical', owner: 'naveen', feature: 'checkout', story: 'SHOP-231' });
+ *
+ * A value can be an object when the link needs more than one parameter (see `links` in the config):
+ *   meta({ octaneTestCase: { id: '58966', p: '4001/14014' } });
  */
 export function meta(values: TestMeta) {
   const i = info();
   for (const [k, v] of Object.entries(values)) {
     if (v === undefined) continue;
-    i.annotations.push({ type: k.toLowerCase(), description: String(v) });
+    // Objects (e.g. { id: '58966', p: '4001/14014' } for a multi-parameter link) travel as JSON.
+    // Arrays (story: ['SHOP-1', 'SHOP-2']) become one chip per value; objects (a multi-parameter link) travel as JSON.
+    const text = Array.isArray(v) ? v.map(String).join(', ') : v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v);
+    i.annotations.push({ type: k.toLowerCase(), description: text });
   }
 }
 
