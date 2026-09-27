@@ -1,16 +1,25 @@
 #!/usr/bin/env node
 // Emit dist/template.html — the same HTML shell renderHtml produces, but with
-// the data JSON payload replaced by the string "__RL_DATA__" so any language
-// port (currently Java) can embed this file, do a single string replace, and
-// produce the same report.
+// well-known placeholders for the fields any language port (Java today, more
+// later) needs to inject at render time:
 //
-// This runs AFTER `tsc` so that dist/template.js exists.
+//   __RL_DATA__         — the report data JSON (the only required one)
+//   __RL_ACCENT_CSS__   — a :root{--accent:...} block, or empty
+//   __RL_CUSTOM_CSS__   — extra CSS the caller wants appended, or empty
+//
+// The placeholders are seeded with distinctive sentinels and then rewritten,
+// so the surrounding CSS/HTML stays exactly what renderHtml produces.
+//
+// Runs AFTER `tsc` (dist/template.js has to exist).
 
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
 const { renderHtml } = require('../dist/template');
+
+const ACCENT_SENTINEL = '__RL_ACCENT_SENTINEL_1a56db_2026__';
+const CUSTOM_SENTINEL = '/*__RL_CUSTOM_CSS_SENTINEL_2026__*/';
 
 const seed = {
   title: '',
@@ -46,27 +55,47 @@ const seed = {
     dimensions: ['priority', 'severity', 'owner', 'feature'],
     dimensionOrder: {},
     links: {},
-    customCss: '',
+    // Seed accent + customCss with sentinels so we know exactly where they
+    // ended up in the rendered HTML.
+    accent: ACCENT_SENTINEL,
+    customCss: CUSTOM_SENTINEL,
     editorLinks: true,
   },
 };
 
-const html = renderHtml(seed);
+let html = renderHtml(seed);
 
-// Replace the data payload with the placeholder. renderHtml emits:
-//   <script id="rl-data" type="application/json">{...}</script>
+// Data payload placeholder.
 const dataRe = /<script id="rl-data" type="application\/json">[^<]*<\/script>/;
 if (!dataRe.test(html)) {
-  console.error('build-template: could not find rl-data script tag in renderHtml output');
+  console.error('build-template: could not find rl-data script tag');
   process.exit(1);
 }
-const withPlaceholder = html.replace(
+html = html.replace(
   dataRe,
   '<script id="rl-data" type="application/json">__RL_DATA__</script>'
 );
 
-const out = path.join(__dirname, '..', 'dist', 'template.html');
-fs.writeFileSync(out, withPlaceholder);
+// Accent + customCss placeholders. renderHtml renders:
+//   `:root{--accent:${accent}!important}` when accent is truthy,
+//   then appends customCss verbatim.
+// Replace those sentinel-anchored spans with named placeholders that hold
+// nothing by default; the port fills them in at render time.
+const accentBlock = `:root{--accent:${ACCENT_SENTINEL}!important}`;
+if (!html.includes(accentBlock)) {
+  console.error('build-template: accent sentinel not found in rendered HTML');
+  process.exit(1);
+}
+html = html.replace(accentBlock, '__RL_ACCENT_CSS__');
 
-const sizeKb = (Buffer.byteLength(withPlaceholder) / 1024).toFixed(1);
+if (!html.includes(CUSTOM_SENTINEL)) {
+  console.error('build-template: customCss sentinel not found in rendered HTML');
+  process.exit(1);
+}
+html = html.replace(CUSTOM_SENTINEL, '__RL_CUSTOM_CSS__');
+
+const out = path.join(__dirname, '..', 'dist', 'template.html');
+fs.writeFileSync(out, html);
+
+const sizeKb = (Buffer.byteLength(html) / 1024).toFixed(1);
 console.log(`build-template: wrote ${out} (${sizeKb} KB)`);
