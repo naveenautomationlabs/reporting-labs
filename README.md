@@ -134,7 +134,7 @@ await testData(rowsFromExcelOrJson, 'Coupons');                           // arr
 await testData(fs.readFileSync('data/users.csv', 'utf8'), 'users.csv');   // CSV text → table
 ```
 
-**Secrets are masked automatically.** Passwords, tokens, API keys, `Authorization` and `Cookie` headers, JWTs and `Bearer ...` values show as `****`. Add your own keys with `maskKeys: ['otp', 'pan']` in the config.
+**Secrets are masked automatically**, wherever they show up: `console.log` output, `log()` lines, `testData()` blocks, API headers and bodies, step titles and assertion messages. Covered forms: `password=x`, `Password: x`, `{ password: 'x' }`, `"password":"x"`, `X-Api-Key: x`, `access_token=x`, "password is x", "with password S3cret@1", `Bearer ...` / `Basic ...`, JWTs, and well-known token formats (GitHub, AWS, Slack, Stripe, Google, GitLab, npm, SendGrid). A failing `expect(token)` shows `Received: "****"`. Add your own keys with `maskKeys: ['otp', 'pan']` in the config; they apply to text too.
 
 ## API calls: recorded on their own
 
