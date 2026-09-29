@@ -606,7 +606,7 @@ Your Slack step can then read `results.json` for pass / fail counts and top fail
 
 ## Java teams
 
-The same report, from Java: `dev.reportinglabs` on Maven Central, for TestNG and JUnit 5, with zero-code add-ons for Selenium and REST Assured and a one-line add-on for Playwright for Java. Source: [reporting-labs-java](https://github.com/naveenautomationlabs/reporting-labs-java). Guides: [reportinglabs.dev/get-started/java](https://reportinglabs.dev/get-started/java).
+The same report, from Java: `dev.reportinglabs` on Maven Central, for TestNG and JUnit 5, with zero-code add-ons for Selenium and REST Assured, a one-line add-on for Playwright for Java and a Cucumber JVM plugin (one row per scenario, Given/When/Then as steps). Source: [reporting-labs-java](https://github.com/naveenautomationlabs/reporting-labs-java). Guides: [reportinglabs.dev/get-started/java](https://reportinglabs.dev/get-started/java).
 
 ## Roadmap
 
