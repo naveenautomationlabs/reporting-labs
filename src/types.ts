@@ -164,6 +164,8 @@ export interface StepData {
   category: string;
   duration: number;
   error?: string;
+  /** 'skipped' when the runner never executed it (a Cucumber step after a failed one) */
+  status?: 'skipped';
   steps: StepData[];
 }
 
