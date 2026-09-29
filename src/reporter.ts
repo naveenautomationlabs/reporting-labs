@@ -366,10 +366,11 @@ export default class ReportingLabsReporter implements Reporter {
   }
 
   private serializeError(e: TestError): ErrorData {
-    const out: ErrorData = { message: stripAnsi(e.message ?? e.value ?? '') };
+    // Assertions print received/expected values, so a failing `expect(token)` would leak the token without this.
+    const out: ErrorData = { message: this.masker.maskStr(stripAnsi(e.message ?? e.value ?? '')) };
     const why = explainError(out.message); if (why) out.explain = why;
-    if (e.stack) out.stack = stripAnsi(e.stack);
-    if (e.snippet) out.snippet = stripAnsi(e.snippet);
+    if (e.stack) out.stack = this.masker.maskStr(stripAnsi(e.stack));
+    if (e.snippet) out.snippet = this.masker.maskStr(stripAnsi(e.snippet));
     if (e.location) out.location = { file: this.rel(e.location.file), line: e.location.line, column: e.location.column };
     return out;
   }
@@ -435,10 +436,10 @@ export default class ReportingLabsReporter implements Reporter {
 
   private serializeStep(s: TestStep): StepData {
     return {
-      title: s.title,
+      title: this.masker.maskStr(s.title),
       category: s.category,
       duration: s.duration,
-      error: s.error?.message ? stripAnsi(s.error.message) : undefined,
+      error: s.error?.message ? this.masker.maskStr(stripAnsi(s.error.message)) : undefined,
       steps: s.steps.filter(c => !isInternalAttach(c)).map(c => this.serializeStep(c)),
     };
   }
