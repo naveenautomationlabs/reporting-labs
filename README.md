@@ -19,7 +19,7 @@ Today it ships with a **Playwright** reporter. WebdriverIO, Cypress and Jest/Vit
 **1. Install**
 
 ```bash
-npm i -D reporting-labs
+npm i -D reporting-labs@latest
 ```
 
 **2. Create the config file**
