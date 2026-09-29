@@ -604,6 +604,10 @@ Your Slack step can then read `results.json` for pass / fail counts and top fail
 - **Print.** A print stylesheet is included, so "Save as PDF" works.
 - **Themes.** Light and dark follow the OS. The toggle in the header remembers your choice.
 
+## Java teams
+
+The same report, from Java: `dev.reportinglabs` on Maven Central, for TestNG and JUnit 5, with zero-code add-ons for Selenium and REST Assured and a one-line add-on for Playwright for Java. Source: [reporting-labs-java](https://github.com/naveenautomationlabs/reporting-labs-java). Guides: [reportinglabs.dev/get-started/java](https://reportinglabs.dev/get-started/java).
+
 ## Roadmap
 
 - WebdriverIO, Cypress, Jest/Vitest and JUnit XML adapters
