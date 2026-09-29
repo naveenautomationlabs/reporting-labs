@@ -1190,7 +1190,7 @@ function errorWhere(e){
 function errorBody(e){
   const msg=e.message||'';
   const box=h('div',{class:'err'}, msg, e.stack&&e.stack!==msg? h('details',{}, h('summary',{},'Stack trace'), h('div',{class:'stack'},e.stack)) : null);
-  const ex=msg.match(/^(Expected[^:\n]{0,40}):[ \t]*(.+)$/m), rc=msg.match(/^(Received[^:\n]{0,40}):[ \t]*(.+)$/m);
+  const ex=msg.match(/^\s*(Expected[^:\n]{0,40}):[ \t]*(.+)$/m), rc=msg.match(/^\s*((?:Received|Actual|But was)[^:\n]{0,40}):[ \t]*(.+)$/m);
   if(ex&&rc&&ex[2].trim()&&rc[2].trim()&&ex[2].length<2000&&rc[2].length<2000){
     const d=tokenDiff(ex[2].trim(), rc[2].trim());
     if(d){ return h('div',{}, h('div',{class:'ediff'},
@@ -1626,7 +1626,7 @@ function compare(set){
 /* ---- bug report: a ready-to-paste ticket built from the failure ---- */
 function bugModel(t){
   const r=t.results[t.results.length-1], e=r&&r.errors[0], x=e&&e.explain, msg=e?e.message:'';
-  const ex=msg.match(/^(Expected[^:\n]{0,40}):[ \t]*(.+)$/m), rc=msg.match(/^(Received[^:\n]{0,40}):[ \t]*(.+)$/m);
+  const ex=msg.match(/^\s*(Expected[^:\n]{0,40}):[ \t]*(.+)$/m), rc=msg.match(/^\s*((?:Received|Actual|But was)[^:\n]{0,40}):[ \t]*(.+)$/m);
   const si=sinceInfo(t);
   const steps=[]; const walk=(list,depth)=>{ for(const st of list){ if(st.category==='hook'||/^Attach "/.test(st.title)||/^Worker Cleanup/.test(st.title)) continue; const user=st.category==='test.step'; if(user||depth===0) steps.push({title:st.title.replace(/^(Given|When|Then|And|But)\s+/,m=>m), failed:!!st.error, user}); if(user&&st.steps.length&&!st.steps.some(c=>c.category==='test.step')) continue; if(st.steps.length) walk(st.steps,depth+1); } };
   if(r) walk(r.steps,0);
