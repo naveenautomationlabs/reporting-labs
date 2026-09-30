@@ -134,7 +134,7 @@ await testData(rowsFromExcelOrJson, 'Coupons');                           // arr
 await testData(fs.readFileSync('data/users.csv', 'utf8'), 'users.csv');   // CSV text → table
 ```
 
-**Secrets are masked automatically**, wherever they show up: `console.log` output, `log()` lines, `testData()` blocks, API headers and bodies, step titles and assertion messages. Covered forms: `password=x`, `Password: x`, `{ password: 'x' }`, `"password":"x"`, `X-Api-Key: x`, `access_token=x`, "password is x", "with password S3cret@1", `Bearer ...` / `Basic ...`, JWTs, and well-known token formats (GitHub, AWS, Slack, Stripe, Google, GitLab, npm, SendGrid). A failing `expect(token)` shows `Received: "****"`. Add your own keys with `maskKeys: ['otp', 'pan']` in the config; they apply to text too.
+**Secrets are masked automatically**, wherever they show up: `console.log` output, `log()` lines, `testData()` blocks, API headers and bodies, step titles and assertion messages. Covered forms: `password=x`, `Password: x`, `{ password: 'x' }`, `"password":"x"`, `X-Api-Key: x`, `access_token=x`, "password is x", "with password S3cret@1", `Bearer ...` / `Basic ...`, JWTs, and well-known token formats (GitHub, AWS, Slack, Stripe, Google, GitLab, npm, SendGrid). A failing `expect(token)` shows `Received: "****"`. Also `user:pass@host` in URLs, `curl -u user:pass`, `credentials user:pass`, `password for user X is Y`, `Typed x into password field`, and Luhn-valid card numbers. The masker remembers every value it has masked (and the values of `PASSWORD` / `API_TOKEN` / `*_SECRET` environment variables), so a secret that later appears with no key at all (`Logging in as admin / s3cret`) is blanked too. Add your own keys with `maskKeys: ['otp', 'pan']` and values it cannot know about with `maskValues: [process.env.PASSWORD]`; `maskFromEnv: false` turns the environment learning off.
 
 ## API calls: recorded on their own
 
@@ -307,6 +307,8 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `env` | – | Extra rows on the Environment card |
 | `links` | `{}` | Turn meta keys into links. `{id}` is replaced by the value. An object `{ url, display }` builds the URL from several fields of an object passed to `meta()`, see below |
 | `maskKeys` | `[]` | Extra keys to mask as `****` |
+| `maskValues` | `[]` | Literal values to blank wherever they appear, keyed or not |
+| `maskFromEnv` | `true` | Learn the values of sensitive-looking environment variables (`PASSWORD`, `API_TOKEN`) and blank them everywhere |
 | `dimensions` | `['priority','severity','feature','owner']` | Which `meta()` keys get a tab in the Breakdown chart and a dropdown filter on the Tests page. Add your own key, e.g. `'team'`, to get a chart for it |
 | `dimensionOrder` | P0…P4, blocker…trivial | The order values appear in those charts and filters. Only needed for your own values, e.g. `{ severity: ['high','medium','low'] }` |
 | `widgets` | all on | Hide cards: `{ tags: false, timeline: false, ... }`. Failure clusters and the Trend chart are always shown |
