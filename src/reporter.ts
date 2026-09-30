@@ -35,7 +35,7 @@ export default class ReportingLabsReporter implements Reporter {
 
   constructor(options: ReportingLabsOptions = {}) {
     this.options = options;
-    this.masker = makeMasker(options.maskKeys ?? []);
+    this.masker = makeMasker(options.maskKeys ?? [], { knownValues: options.maskValues ?? [], fromEnv: options.maskFromEnv !== false });
   }
 
   printsToStdio() { return false; }
@@ -267,10 +267,11 @@ export default class ReportingLabsReporter implements Reporter {
   }
 
   private toDataBlock(name: string, raw: string): ResultData['data'][number] {
+    name = this.masker.maskStr(String(name));   // a block name can carry a secret too
     let v: any; try { v = JSON.parse(raw); } catch { return { name, kind: 'text', text: this.masker.maskStr(raw) }; }
     if (v && typeof v === 'object' && typeof v.csv === 'string' && Object.keys(v).length === 1) {
       const { columns, rows } = parseCsv(v.csv);
-      const masked = rows.map(r => r.map((c, i) => this.masker.isSensitive(columns[i] ?? '') ? '****' : this.masker.maskStr(c)));
+      const masked = rows.map(r => r.map((c, i) => { if (this.masker.isSensitive(columns[i] ?? '')) { this.masker.learn(c); return '****'; } return this.masker.maskStr(c); }));
       return { name, kind: 'table', columns, rows: masked };
     }
     v = this.masker.mask(v);

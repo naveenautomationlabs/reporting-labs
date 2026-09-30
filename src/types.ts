@@ -78,6 +78,10 @@ export interface ReportingLabsOptions {
   links?: Record<string, string | LinkTemplate>;
   /** Keys (case-insensitive substrings) whose values are masked in test data and API panels. */
   maskKeys?: string[];
+  /** Literal values to blank wherever they appear, keyed or not (the test password, a token). Pass the real ones from CI: process.env.PASSWORD. */
+  maskValues?: string[];
+  /** Learn the values of PASSWORD / API_TOKEN / *_SECRET environment variables and blank them everywhere (default true). */
+  maskFromEnv?: boolean;
   /** Keep a rolling run history next to the report and draw a trend chart. Per-test outcomes are stored too, which powers new-vs-known failures, flaky history and duration regressions. */
   history?: { enabled?: boolean; file?: string; keep?: number };
   /** Extra rows for the Environment card, e.g. { 'App version': '2.4.0', 'Test data': 'staging-seed-12' }. Values that are URLs become links. */
