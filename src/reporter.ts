@@ -39,7 +39,7 @@ export default class ReportingLabsReporter implements Reporter {
     // the config, so a config that says env: 'local' still labels the pipeline's reports dev, qa,
     // stage without anyone touching it. The config value applies when no variable is set.
     // Runtime overrides, highest precedence: REPORTING_LABS_METADATA_<KEY> sets a header chip
-    // (REPORTING_LABS_METADATA_ENV=qa, REPORTING_LABS_METADATA_BUILD=1842) and REPORTING_LABS_TITLE /
+    // (REPORTING_LABS_METADATA_ENV=qa, REPORTING_LABS_METADATA_RELEASE=2.3) and REPORTING_LABS_TITLE /
     // _THEME / _PALETTE / _ACCENT / _LOGO the matching option, so a pipeline can label a run without
     // touching the config. Same contract as the Java reporter's REPORTING_LABS_* variables.
     const metadata = { ...(options.metadata ?? {}) };
