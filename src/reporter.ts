@@ -34,11 +34,13 @@ export default class ReportingLabsReporter implements Reporter {
   private globalOutput: { stream: 'out' | 'err'; text: string }[] = [];
 
   constructor(options: ReportingLabsOptions = {}) {
-    // The env chip: metadata.env from the config, else the ENV / TEST_ENV / ENVIRONMENT / APP_ENV
-    // variable a CI job sets, so a pipeline that runs the same suite against dev, qa and stage
-    // labels each report without a config change.
+    // The env chip. A runtime variable beats the config file, the same precedence as everything
+    // else: the ENV / TEST_ENV / ENVIRONMENT / APP_ENV a CI job exports wins over metadata.env in
+    // the config, so a config that says env: 'local' still labels the pipeline's reports dev, qa,
+    // stage without anyone touching it. The config value applies when no variable is set.
     const metadata = { ...(options.metadata ?? {}) };
-    if (!metadata.env) { const e = process.env.ENV ?? process.env.TEST_ENV ?? process.env.ENVIRONMENT ?? process.env.APP_ENV; if (e) metadata.env = e; }
+    const envVar = process.env.ENV ?? process.env.TEST_ENV ?? process.env.ENVIRONMENT ?? process.env.APP_ENV;
+    if (envVar && envVar.trim()) metadata.env = envVar.trim();
     this.options = { ...options, metadata };
     this.masker = makeMasker(options.maskKeys ?? [], { knownValues: options.maskValues ?? [], fromEnv: options.maskFromEnv !== false });
   }

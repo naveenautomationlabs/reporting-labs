@@ -303,7 +303,7 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `title` | `'Test report'` | Title in the header |
 | `logo` | – | Your logo next to the title: `'logo.png'` (a file next to the config, embedded in the report) or an https URL |
 | `project` | – | `{ name, version, team, url }` shown under the title |
-| `metadata` | `{}` | Chips in the header, e.g. `{ env: 'staging', build: '#1842' }`. `build` labels the run in the trend; in CI the run number is used when it is not set. `env` falls back to the `ENV` / `TEST_ENV` / `ENVIRONMENT` / `APP_ENV` variable when not set |
+| `metadata` | `{}` | Chips in the header, e.g. `{ env: 'staging', build: '#1842' }`. `build` labels the run in the trend; in CI the run number is used when it is not set. An `ENV` / `TEST_ENV` / `ENVIRONMENT` / `APP_ENV` variable in the environment wins over `env` here, so a config that says `local` still labels CI reports `dev`, `qa`, `stage` |
 | `env` | – | Extra rows on the Environment card |
 | `links` | `{}` | Turn meta keys into links. `{id}` is replaced by the value. An object `{ url, display }` builds the URL from several fields of an object passed to `meta()`, see below |
 | `maskKeys` | `[]` | Extra keys to mask as `****` |
