@@ -303,7 +303,10 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `title` | `'Test report'` | Title in the header |
 | `logo` | – | Your logo next to the title: `'logo.png'` (a file next to the config, embedded in the report) or an https URL |
 | `project` | – | `{ name, version, team, url }` shown under the title |
-| `metadata` | `{}` | Chips in the header, e.g. `{ env: 'staging', build: '#1842' }`. `build` labels the run in the trend; in CI the run number is used when it is not set |
+| `metadata` | `{}` | Chips in the header, e.g. `{ env: 'staging', build: '#1842' }`. `build` labels the run in the trend; in CI the run number is used when it is not set. The environment name is also read from the process environment and wins over `env` here: `ENV`, `TEST_ENV`, `APP_ENV`, `TARGET_ENV` and friends, or any variable ending in `_ENV` / `_ENVIRONMENT` (`OPENCART_ENV`), so a config that says `local` still labels CI reports `dev`, `qa`, `stage` |
+| `envVar` | – | Name of the variable that holds the environment name, when the detection cannot guess it |
+
+**Runtime overrides.** `REPORTING_LABS_METADATA_<KEY>` sets a header chip from the environment (`REPORTING_LABS_METADATA_ENV=qa`, `REPORTING_LABS_METADATA_RELEASE=2.3`) and `REPORTING_LABS_TITLE`, `_THEME`, `_PALETTE`, `_ACCENT`, `_LOGO` the matching option; they win over the config. The env chip resolves in this order: `REPORTING_LABS_METADATA_ENV`, the variable `envVar` names, the conventional names (`ENV`, `TEST_ENV`, `APP_ENV`, `TARGET_ENV`, `CI_ENVIRONMENT_NAME`, anything ending in `_ENV`), then `metadata.env` in the config.
 | `env` | – | Extra rows on the Environment card |
 | `links` | `{}` | Turn meta keys into links. `{id}` is replaced by the value. An object `{ url, display }` builds the URL from several fields of an object passed to `meta()`, see below |
 | `maskKeys` | `[]` | Extra keys to mask as `****` |
