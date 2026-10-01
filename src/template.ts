@@ -588,8 +588,10 @@ html,body{-webkit-font-smoothing:antialiased}
 .clu2 li{display:grid;grid-template-columns:44px 1fr;gap:12px;padding:11px 0;border-top:1px solid var(--line)} .clu2 li:first-child{border-top:0;padding-top:2px}
 .clu2 .n{font-size:20px;font-weight:600;color:var(--fail);font-variant-numeric:tabular-nums;line-height:1.1} .clu2 .n small{display:block;font-size:10.5px;color:var(--ink-3);font-weight:500;letter-spacing:.04em;margin-top:1px}
 .clu2 .b{min-width:0} .clu2 .msg{font:12.5px/1.45 var(--mono);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.clu2 .who{font-size:12.5px;color:var(--ink-2);margin-top:4px;line-height:1.6} .clu2 .who button{color:var(--accent-2);font-weight:500} .clu2 .who button:hover{text-decoration:underline} .clu2 .who button small{color:var(--ink-3);font-weight:400;font-size:11px}
-.clu2 .who .sep{color:var(--line-2);margin:0 7px} .clu2 .who .ex{color:var(--ink-3)}
+.clu2 .who{font-size:12.5px;color:var(--ink-2);margin-top:5px;line-height:1.45;display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.clu2 .who button{color:var(--accent-2);font-weight:500;text-align:left;white-space:normal;max-width:100%;padding:0 0 0 14px;text-indent:-14px} .clu2 .who button .tri{display:inline-block;width:14px;text-indent:0;color:var(--ink-3);font-weight:400}
+.clu2 .who button:hover{text-decoration:underline} .clu2 .who button small{color:var(--ink-3);font-weight:400;font-size:11px}
+.clu2 .who button.ex{color:var(--ink-3);font-weight:400;cursor:pointer;text-indent:0} .clu2 .who button.ex:hover{color:var(--accent-2);text-decoration:underline}
 @media (max-width:640px){.attn2 .ow{display:none} .attn2 .pr{width:72px} .attn2 .pr small{display:none}}
 /* ---------- run status, errors outside tests, snippets ---------- */
 .att-err{padding:12px 14px;background:var(--fail-bg);color:var(--ink);border-radius:8px 8px 0 0;line-height:1.5} .att-err code{font:12px var(--mono);background:var(--surface);padding:1px 5px;border-radius:4px}
@@ -1335,17 +1337,43 @@ function errorSignature(msg){
 }
 function failureClusters(){
   const m=new Map();
-  for(const t of data.tests){ if(!isFail(t.outcome)) continue; const r=t.results[t.results.length-1]; const e=r&&r.errors[0]; const x=e&&e.explain; const sig=x&&!/^(thrown|script)$/.test(x.kind)? x.kind+'|'+(x.locator||x.url||'')+'|'+(x.matcher||x.action||'') : errorSignature(e?e.message:'(no error message)'); const c=m.get(sig)||{sig,sample:e?e.message.split('\n').slice(0,2).join('\n'):'(no error message)',why:e&&e.explain?e.explain:null,tests:[]}; c.tests.push(t); m.set(sig,c); }
+  for(const t of data.tests){ if(!isFail(t.outcome)) continue; const r=t.results[t.results.length-1]; const e=r&&r.errors[0]; const x=e&&e.explain; const msg=e?e.message:'(no error message)';
+    // One cluster per root cause: the explain kind plus what it points at. An explanation that points at
+    // nothing (a plain assertion) falls back to the message shape, so two different assertions stay apart.
+    const sig=x&&!/^(thrown|script)$/.test(x.kind)? x.kind+'|'+(x.locator||x.url||'')+'|'+(x.matcher||x.action||'')+(x.locator||x.url?'':'|'+messageShape(msg)) : errorSignature(msg);
+    const c=m.get(sig)||{sig,sample:msg.split('\n').map(l=>l.trim()).filter(Boolean).slice(0,3).join('\n'),why:x||null,tests:[]}; c.tests.push(t); m.set(sig,c); }
   return [...m.values()].sort((a,b)=>b.tests.length-a.tests.length);
+}
+// The message line shown under a cluster's explanation: the first line that says something the
+// explanation does not already say. Hamcrest's "Expected: is <200>" / "but: was <404>" is fully
+// covered by "The value was wrong: expected <200>, got <404>." so nothing is repeated.
+// The shape of a message: its first lines with numbers and quoted values blanked, so two assertions on
+// different values of the same kind cluster together, and assertions on different things stay apart.
+function messageShape(msg){ return String(msg||'').split('\n').map(l=>l.trim()).filter(Boolean).slice(0,3).map(errorSignature).join(' / '); }
+function cluToks(s){ const stop=/^(expected|expecting|but|is|was|were|received|actual|to|be|the|a|an|of|and|not|did|got|value|wrong|equal|have)$/; return new Set(String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').split(' ').filter(w=>w&&!stop.test(w))); }
+function clusterLine(c){
+  const lines=c.sample.split('\n').filter(Boolean); if(!c.why) return lines[0]||c.sample;
+  const have=cluToks(c.why.summary);
+  // "Error: " / "AssertionError: " prefixes carry nothing; the expect(received).toBe(expected) hint line of
+  // Jest-style matchers is a header, not a detail.
+  const bare=l=>l.replace(/^[\w.$]*(Error|Exception|Failure|Throwable)(:\s*|$)/,'');
+  return lines.find(l=>{ const b=bare(l); if(/^expect\(.*\)\.[\w.]+\(.*\)/.test(b)) return false; const t=[...cluToks(b)]; return t.length && t.some(w=>!have.has(w)); })||null;
+}
+// The tests of a cluster, six by name and "+N more" for the rest; the +N more button expands the list
+// in place and "show fewer" folds it again. Each name opens that test.
+function clusterWho(byTitle, all){
+  const entries=[...byTitle.entries()], names=all?entries:entries.slice(0,6), extra=entries.length-names.length;
+  const who=names.map(([title,ts])=>h('button',{onclick:()=>select(ts[0].id),title:ts.map(t=>t.project).join(', ')}, h('span',{class:'tri'},'›'), title, data.projects.length>1&&ts.length>1? h('small',{},' ×'+ts.length) : null));
+  const swap=(ev,toAll)=>{ const d=ev.currentTarget.closest('.who'); d.replaceChildren(); for(const n of clusterWho(byTitle,toAll)) d.append(n); };
+  if(extra>0) who.push(h('button',{class:'ex',onclick:ev=>swap(ev,true),title:'Show all '+entries.length+' tests'},'+'+extra+' more'));
+  else if(all&&entries.length>6) who.push(h('button',{class:'ex',onclick:ev=>swap(ev,false)},'show fewer'));
+  return who;
 }
 function clustersView(cl){
   return h('ol',{class:'clu2'}, cl.map(c=>{
     const byTitle=new Map(); for(const t of c.tests){ const g=byTitle.get(t.title)||[]; g.push(t); byTitle.set(t.title,g); }
-    const names=[...byTitle.entries()].slice(0,6), extra=byTitle.size-names.length;
-    const who=[]; names.forEach(([title,ts],k)=>{ if(k) who.push(h('span',{class:'sep'},'·')); who.push(h('button',{onclick:()=>select(ts[0].id),title:ts.map(t=>t.project).join(', ')}, title, data.projects.length>1&&ts.length>1? h('small',{},' ×'+ts.length) : null)); });
-    if(extra>0) who.push(h('span',{class:'sep'},'·'), h('span',{class:'ex'},'+'+extra+' more'));
     return h('li',{}, h('span',{class:'n'}, c.tests.length, h('small',{},c.tests.length===1?'test':'tests')),
-      h('div',{class:'b'}, c.why? h('div',{class:'why-c'}, h('span',{class:'why-k'},c.why.label), ' ', c.why.summary) : null, h('div',{class:'msg',title:c.sample}, c.sample.split('\n')[0]), h('div',{class:'who'}, who)));
+      h('div',{class:'b'}, c.why? h('div',{class:'why-c'}, h('span',{class:'why-k'},c.why.label), ' ', c.why.summary) : null, (line=>line? h('div',{class:'msg',title:c.sample}, line):null)(clusterLine(c)), h('div',{class:'who'}, clusterWho(byTitle,false))));
   }));
 }
 function trend(){
