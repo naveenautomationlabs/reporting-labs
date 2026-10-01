@@ -25,6 +25,8 @@ export interface ReportingLabsOptions {
   embedVideos?: boolean;
   /** Key/value shown in the header (env, branch, build...). `build` labels the run in the history; when it is not set the CI run number is used. */
   metadata?: Record<string, string>;
+  /** Name of the environment variable that holds the environment name, when it is not one the reporter finds by itself (ENV, TEST_ENV, APP_ENV, anything ending in _ENV). */
+  envVar?: string;
   /** Extra sections rendered below the summary. HTML is allowed. */
   sections?: Array<{ title: string; html: string }>;
   /** Hide widgets you don't need. */

@@ -38,10 +38,23 @@ export default class ReportingLabsReporter implements Reporter {
     // else: the ENV / TEST_ENV / ENVIRONMENT / APP_ENV a CI job exports wins over metadata.env in
     // the config, so a config that says env: 'local' still labels the pipeline's reports dev, qa,
     // stage without anyone touching it. The config value applies when no variable is set.
+    // Runtime overrides, highest precedence: REPORTING_LABS_METADATA_<KEY> sets a header chip
+    // (REPORTING_LABS_METADATA_ENV=qa, REPORTING_LABS_METADATA_BUILD=1842) and REPORTING_LABS_TITLE /
+    // _THEME / _PALETTE / _ACCENT / _LOGO the matching option, so a pipeline can label a run without
+    // touching the config. Same contract as the Java reporter's REPORTING_LABS_* variables.
     const metadata = { ...(options.metadata ?? {}) };
-    const envVar = process.env.ENV ?? process.env.TEST_ENV ?? process.env.ENVIRONMENT ?? process.env.APP_ENV;
-    if (envVar && envVar.trim()) metadata.env = envVar.trim();
-    this.options = { ...options, metadata };
+    for (const [k, v] of Object.entries(process.env)) {
+      const m = /^REPORTING_LABS_METADATA_([A-Z0-9_]+)$/.exec(k);
+      if (m && v && v.trim()) metadata[m[1].toLowerCase()] = v.trim();
+    }
+    // Below the explicit override, the environment name the run was pointed at, found by convention
+    // (ENV, TEST_ENV, APP_ENV, TARGET_ENV, anything ending in _ENV) or the variable `envVar` names.
+    // It beats metadata.env in the config: a runtime value wins over the file, as everywhere else.
+    if (!process.env.REPORTING_LABS_METADATA_ENV) { const detected = detectEnvName(process.env, options.envVar); if (detected) metadata.env = detected; }
+    const scalar = (name: string, current: string | undefined) => { const v = process.env['REPORTING_LABS_' + name]; return v && v.trim() ? v.trim() : current; };
+    this.options = { ...options, metadata,
+      title: scalar('TITLE', options.title), theme: scalar('THEME', options.theme) as any, palette: scalar('PALETTE', options.palette) as any,
+      accent: scalar('ACCENT', options.accent), logo: scalar('LOGO', options.logo) };
     this.masker = makeMasker(options.maskKeys ?? [], { knownValues: options.maskValues ?? [], fromEnv: options.maskFromEnv !== false });
   }
 
@@ -491,6 +504,28 @@ export default class ReportingLabsReporter implements Reporter {
 }
 
 /** Run number from the CI system, used to label history entries when metadata.build is not set. */
+/** Variables whose name ends in ENV but never hold an environment name. */
+const NOT_AN_ENV_VAR = new Set(['GITHUB_ENV', 'NODE_ENV', 'BASH_ENV', 'VIRTUAL_ENV', 'CONDA_DEFAULT_ENV', 'RUNNER_ENVIRONMENT', 'PIPENV_ACTIVE', 'ZSH_ENV', 'JAVA_ENV', 'DOTNET_ENVIRONMENT', 'ASPNETCORE_ENVIRONMENT', 'HOSTING_ENVIRONMENT']);
+/** Names every project seems to pick first, in order. */
+const ENV_VAR_NAMES = ['ENV', 'TEST_ENV', 'ENVIRONMENT', 'APP_ENV', 'TARGET_ENV', 'RUN_ENV', 'DEPLOY_ENV', 'ENV_NAME', 'TEST_ENVIRONMENT', 'TARGET_ENVIRONMENT', 'CI_ENVIRONMENT_NAME', 'DEPLOYMENT_ENVIRONMENT', 'STAGE'];
+/** dev, qa, stage-2, app_qa, prod-eu: a short token, never a path, URL or sentence. */
+const looksLikeEnvName = (v: string | undefined): v is string => !!v && /^[A-Za-z][\w.-]{0,31}$/.test(v.trim());
+
+/**
+ * The environment name the run was pointed at, from the process environment: the variable named
+ * by `envVar` if given, else the usual names (ENV, TEST_ENV, APP_ENV, TARGET_ENV, …), else any
+ * variable whose name ends in _ENV or _ENVIRONMENT (OPENCART_ENV, app_env). Every project names
+ * it differently; this finds it without being told. Undefined when nothing fits.
+ */
+export function detectEnvName(env: NodeJS.ProcessEnv, envVar?: string): string | undefined {
+  const get = (name: string) => { const v = env[name] ?? env[name.toLowerCase()]; return looksLikeEnvName(v) ? v.trim() : undefined; };
+  if (envVar) return get(envVar) ?? (looksLikeEnvName(env[envVar]) ? env[envVar]!.trim() : undefined);
+  for (const n of ENV_VAR_NAMES) { const v = get(n); if (v) return v; }
+  const wild = Object.keys(env).filter(k => /_(ENV|ENVIRONMENT|ENV_NAME)$/i.test(k) && !NOT_AN_ENV_VAR.has(k.toUpperCase())).sort();
+  for (const k of wild) { const v = env[k]; if (looksLikeEnvName(v)) return v.trim(); }
+  return undefined;
+}
+
 function ciRunLabel(env: NodeJS.ProcessEnv): string | undefined {
   const n = env.GITHUB_RUN_NUMBER || env.BUILD_NUMBER || env.CI_PIPELINE_IID || env.CIRCLE_BUILD_NUM || env.BUILD_BUILDNUMBER || env.BITBUCKET_BUILD_NUMBER;
   return n ? `#${n}` : undefined;
