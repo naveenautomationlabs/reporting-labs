@@ -34,7 +34,12 @@ export default class ReportingLabsReporter implements Reporter {
   private globalOutput: { stream: 'out' | 'err'; text: string }[] = [];
 
   constructor(options: ReportingLabsOptions = {}) {
-    this.options = options;
+    // The env chip: metadata.env from the config, else the ENV / TEST_ENV / ENVIRONMENT / APP_ENV
+    // variable a CI job sets, so a pipeline that runs the same suite against dev, qa and stage
+    // labels each report without a config change.
+    const metadata = { ...(options.metadata ?? {}) };
+    if (!metadata.env) { const e = process.env.ENV ?? process.env.TEST_ENV ?? process.env.ENVIRONMENT ?? process.env.APP_ENV; if (e) metadata.env = e; }
+    this.options = { ...options, metadata };
     this.masker = makeMasker(options.maskKeys ?? [], { knownValues: options.maskValues ?? [], fromEnv: options.maskFromEnv !== false });
   }
 
