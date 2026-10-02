@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytest-reporting-labs"
+version = "0.1.0"
+description = "pytest plugin for reportingLabs: a beautiful test report in one HTML file."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["pytest", "test-report", "html-report", "api-testing", "reporting-labs"]
+classifiers = [
+    "Framework :: Pytest",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = ["pytest>=7.0"]
+
+[project.optional-dependencies]
+test = [
+    "pytest-xdist>=3.0",
+    "pytest-rerunfailures>=12.0",
+    "pytest-timeout>=2.1",
+    "requests>=2.25",
+    "httpx>=0.23",
+]
+
+[project.urls]
+Homepage = "https://github.com/naveenautomationlabs/reporting-labs/tree/main/adapters/pytest"
+
+[project.entry-points.pytest11]
+reporting_labs = "reporting_labs.plugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "e2e: runs the examples and renders HTML with npx (needs Node and network)",
+    "contract: type-checks report.json against src/types.ts (needs Node)",
+]

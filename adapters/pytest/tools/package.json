@@ -1,0 +1,12 @@
+{
+  "name": "pytest-reporting-labs-tools",
+  "private": true,
+  "description": "Checks for the pytest adapter: type-check report.json against ../../../src/types.ts, compare masking with src/mask.ts, load the HTML in jsdom. Separate from the root package on purpose.",
+  "scripts": {
+    "check-report": "node check-report.js"
+  },
+  "devDependencies": {
+    "jsdom": "30.1.0",
+    "typescript": "5.9.3"
+  }
+}
