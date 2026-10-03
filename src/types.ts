@@ -17,6 +17,11 @@ export interface ReportingLabsOptions {
   emitJson?: boolean;
   /** File name of the JSON blob inside outputFolder. Default: "report.json" */
   jsonFile?: string;
+  /** Also write a print-ready `report.pdf` next to the HTML, rendered by headless Chromium from the
+   *  report's own PDF layout (executive summary, charts, failure analysis, the full test-case table and
+   *  screenshots of failures). Needs the Chromium that Playwright already provides. Default: true —
+   *  set `false` to skip, or `{ file }` to rename. The report also has an "Export PDF" button. */
+  pdf?: boolean | { file?: string };
   /** Inline screenshots as base64 (single file, opens anywhere). Default: true */
   embedAttachments?: boolean;
   /** Max size (bytes) of a single attachment to embed. Larger ones are copied as files. Default: 2 MB */
