@@ -698,6 +698,22 @@ html,body{font-size:var(--fs)}
   #app{display:none!important}
   .printdoc{display:block!important;max-width:none;margin:0;padding:0;color:var(--ink);font-size:12px}
   .printdoc *{ -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
+  /* On paper nothing can be clicked or hovered, so never truncate text with an ellipsis or a
+     height clamp — wrap it and show it in full. Numbers, durations and status chips stay on one line. */
+  .printdoc .apitbl .u,.printdoc .apitbl .t,.printdoc .apitbl td,.printdoc .slow .t,.printdoc .proj .name,
+  .printdoc .file,.printdoc .item .tt .p,.printdoc .item .tt .n,.printdoc .item .d,.printdoc .step .t,
+  .printdoc .att figcaption,.printdoc .dim .k,.printdoc .attn .t,.printdoc .attn .t .tt,.printdoc .attn .sev,
+  .printdoc .attn2 .pr,.printdoc .attn2 .ow,.printdoc .attn2 .tt .n,.printdoc .attn2 .tt .s,
+  .printdoc .tbl td,.printdoc .tbl th,.printdoc .api-head .u,.printdoc .clu .msg,.printdoc .clu .n,
+  .printdoc .clu2 .msg,.printdoc .clu2 .who,.printdoc .clu2 .who button,.printdoc .own .ts,.printdoc .own .nm,
+  .printdoc .hist .b .l,.printdoc .loc,.printdoc .crumb span,.printdoc .pt-name,.printdoc .pt-sub,.printdoc .pt-spec{
+    white-space:normal!important;overflow:visible!important;text-overflow:clip!important;
+    max-width:none!important;max-height:none!important;overflow-wrap:break-word;-webkit-line-clamp:none!important;
+  }
+  /* durations / counts / status stay on one line so "9ms" never breaks to "9m s" */
+  .printdoc .apitbl td.t:last-child,.printdoc .num,.printdoc .pstatus,.printdoc .since-txt{white-space:nowrap!important;overflow-wrap:normal!important}
+  /* only genuinely unbreakable strings (urls, file paths, selectors) may break mid-token */
+  .printdoc .apitbl .u,.printdoc .api-head .u,.printdoc .pt-spec,.printdoc .loc,.printdoc .file,.printdoc .clu .msg,.printdoc .clu2 .msg{overflow-wrap:anywhere}
   .printdoc .psec{padding-top:1mm}
   .printdoc .psec.brk{break-before:page}
   .printdoc .psec-h{font-size:16px;font-weight:600;letter-spacing:-.01em;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line);color:var(--ink)}
@@ -706,7 +722,7 @@ html,body{font-size:var(--fs)}
   .printdoc .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;margin:0}
   .printdoc .list,.printdoc .nav,.printdoc .band,.printdoc .stripe,.printdoc .fx-tools .btn,.printdoc .fx-tools .spacer{display:none!important}
   /* drop interactive-only chrome and anything that cannot live on paper */
-  .printdoc .actions,.printdoc .gchart-head button,.printdoc .vids,.printdoc .cmp,.printdoc .hint-kbd,.printdoc .mask-note{display:none!important}
+  .printdoc .actions,.printdoc .gchart-head button,.printdoc .vids,.printdoc .cmp,.printdoc .hint-kbd,.printdoc .mask-note,.printdoc .clu2 .who .ex{display:none!important}
   .printdoc a{color:var(--ink);text-decoration:none}
   /* ---- cover / executive summary (page 1) ---- */
   .printdoc .pcover{padding:2mm 0 0}
@@ -1840,7 +1856,12 @@ function buildPrintDoc(){
   const sec=(title,node)=>{ if(!node) return; pd.append(h('section',{class:'psec'+(first?'':' brk')}, h('h2',{class:'psec-h'},title), node)); first=false; };
   // ---- analytics, failure analysis, full inventory, evidence ----
   if(data.tests.length) sec('Test analytics', graphsView());
-  if(f + s.flaky > 0) sec('Failure analysis', failuresView());
+  if(f + s.flaky > 0){
+    const fn=failuresView();
+    // On paper there is no "+N more" to click, so expand every cluster to list all its tests.
+    fn.querySelectorAll('.clu2 .who .ex').forEach(b=>{ try{ b.click(); }catch(e){} });
+    sec('Failure analysis', fn);
+  }
   sec('All test cases', allTestsTable());
   const bad=[...data.tests].filter(t=>isFail(t.outcome)||t.outcome==='flaky').sort((a,b)=>rank(a)-rank(b)||a.title.localeCompare(b.title));
   if(bad.length){ const ev=h('div',{}); for(const t of bad) ev.append(printEvidence(t)); sec('Failure evidence', ev); }
