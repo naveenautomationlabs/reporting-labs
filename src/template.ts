@@ -687,7 +687,10 @@ html,body{font-size:var(--fs)}
 .chip b,.loc,.file,.file-row,.kbd,.slow .d,.step .d,.hist .l,.wk .k,.tbl td,.kv2 dd,.kv.env dd,.logs,.txt,.err,.ediff .val,.ediff.lines,.clu2 .msg,.apitbl .u,.api-head .m,.api-head .sc,.api-head .d,.api-col pre,.badge.tag,.trend text,.tl text,.attn2 .tt .s .mono,.trace-how code{font-family:var(--mono)}
 .chip{font-family:var(--sans)} .chip b{font-weight:500}
 
-/* ---------- print / PDF: the whole report on paper — every section, chart, cluster, screenshot ---------- */
+/* ---------- print / PDF: a clean, client-shareable executive report ----------
+   Page 1 is a full executive summary (no wasted space); analytics, failure analysis, the
+   full test-case table and failure evidence each start on a fresh page. Per-test steps,
+   logs, API and console are left out so the PDF stays small and readable at 500+ tests. */
 .printdoc{display:none}
 @media print{
   @page{ size:A4; margin:12mm 11mm 13mm; }
@@ -695,35 +698,58 @@ html,body{font-size:var(--fs)}
   #app{display:none!important}
   .printdoc{display:block!important;max-width:none;margin:0;padding:0;color:var(--ink);font-size:12px}
   .printdoc *{ -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
-  /* cover first, then each major section on a fresh page; test details flow */
-  .printdoc .psec{break-before:page;padding-top:1mm}
+  .printdoc .psec{padding-top:1mm}
+  .printdoc .psec.brk{break-before:page}
   .printdoc .psec-h{font-size:16px;font-weight:600;letter-spacing:-.01em;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line);color:var(--ink)}
-  .printdoc .card,.printdoc .ptest,.printdoc .gchart,.printdoc .trace-card,.printdoc figure,.printdoc .api,.printdoc .clu2 li,.printdoc .attn2,.printdoc table,.printdoc .kpi,.printdoc .hm{break-inside:avoid}
+  .printdoc .card,.printdoc .gchart,.printdoc figure,.printdoc .clu2 li,.printdoc .attn2,.printdoc .kpi,.printdoc .hm,.printdoc .pev,.printdoc .pexec-card,.printdoc tr{break-inside:avoid}
   .printdoc .psec-h,.printdoc h4{break-after:avoid}
   .printdoc .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;margin:0}
-  .printdoc .list,.printdoc .nav,.printdoc .band,.printdoc .stripe{display:none!important}
-  /* reveal everything the live app collapses or hides behind interaction */
-  .printdoc li.collapsed>ul{display:block!important}
-  .printdoc .step .tw{visibility:hidden}
-  .printdoc .api.collapsed .api-body{display:grid!important}
+  .printdoc .list,.printdoc .nav,.printdoc .band,.printdoc .stripe,.printdoc .fx-tools .btn,.printdoc .fx-tools .spacer{display:none!important}
   /* drop interactive-only chrome and anything that cannot live on paper */
-  .printdoc .actions,.printdoc .gchart-head button,.printdoc .api-tools,.printdoc .api.collapsed .api-tools,.printdoc .vids,.printdoc .cmp,.printdoc .trace .dl,.printdoc .hint-kbd,.printdoc .mask-note,.printdoc .trace-how{display:none!important}
-  .printdoc .pcover .logo{width:40px;height:40px;flex:none}
-  .printdoc .pcover .logo svg{width:40px;height:40px;display:block}
-  /* screenshots: fit the page, keep aspect, light frame */
-  .printdoc .att{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .printdoc .att img{max-width:100%;max-height:150mm;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff}
-  .printdoc .ptest{padding:14px 0;border-top:1px solid var(--line)}
-  .printdoc .ptest:first-child{border-top:0;padding-top:0}
+  .printdoc .actions,.printdoc .gchart-head button,.printdoc .vids,.printdoc .cmp,.printdoc .hint-kbd,.printdoc .mask-note{display:none!important}
   .printdoc a{color:var(--ink);text-decoration:none}
-  .printdoc .pcover{padding:4mm 0 2mm}
-  .printdoc .pcover-stats{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 4px}
-  .printdoc .pstat{border:1px solid var(--line);border-radius:10px;padding:10px 16px;min-width:88px;background:var(--surface)}
-  .printdoc .pstat .n{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
-  .printdoc .pstat .l{font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+  /* ---- cover / executive summary (page 1) ---- */
+  .printdoc .pcover{padding:2mm 0 0}
+  .printdoc .pcover-top{display:flex;align-items:center;gap:13px}
+  .printdoc .pcover .logo{width:44px;height:44px;flex:none}
+  .printdoc .pcover .logo svg{width:44px;height:44px;display:block;border-radius:11px}
+  .printdoc .pcover-title{font-size:25px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+  .printdoc .pcover-sub{color:var(--ink-3);font-size:12px;margin-top:3px}
+  .printdoc .pcover-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .printdoc .pverdict{font-size:17px;font-weight:600;margin:16px 0 2px}
+  .printdoc .pverdict.ok{color:var(--pass)} .printdoc .pverdict.bad{color:var(--fail)}
+  .printdoc .pcover-stats{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 4px}
+  .printdoc .pstat{border:1px solid var(--line);border-radius:10px;padding:9px 15px;min-width:84px;background:var(--surface)}
+  .printdoc .pstat .n{font-size:25px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+  .printdoc .pstat .l{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+  .printdoc .pexec{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+  .printdoc .pexec-card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--surface)}
+  .printdoc .psub-h{font-size:12.5px;font-weight:600;color:var(--ink);margin:0 0 10px}
+  /* ---- the all-tests table ---- */
+  .printdoc .ptbl{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
+  .printdoc .ptbl thead{display:table-header-group}
+  .printdoc .ptbl th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600;padding:7px 8px;border-bottom:2px solid var(--line)}
+  .printdoc .ptbl td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+  .printdoc .ptbl td.num{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap}
+  .printdoc .ptbl .pt-name{font-weight:500;color:var(--ink)}
+  .printdoc .ptbl .pt-sub{font-size:10px;color:var(--ink-3);margin-top:1px}
+  .printdoc .ptbl .pt-spec{font:10.5px var(--mono);color:var(--ink-2)}
+  .printdoc .pstatus{display:inline-flex;align-items:center;gap:6px;font-weight:500;white-space:nowrap}
+  .printdoc .pstatus .st{width:9px;height:9px;border-radius:50%;flex:none}
+  .printdoc .ptbl .c-n{width:30px} .printdoc .ptbl .c-pri{width:72px} .printdoc .ptbl .c-own{width:84px} .printdoc .ptbl .c-st{width:88px} .printdoc .ptbl .c-dur{width:62px}
+  /* ---- failure evidence ---- */
+  .printdoc .pev{padding:14px 0;border-top:1px solid var(--line)}
+  .printdoc .pev:first-child{border-top:0;padding-top:2px}
+  .printdoc .pev-head{display:flex;align-items:center;gap:9px}
+  .printdoc .pev-head .st{width:10px;height:10px;border-radius:50%;flex:none}
+  .printdoc .pev-title{font-size:14px;font-weight:600;letter-spacing:-.01em}
+  .printdoc .pev-loc{font:11px var(--mono);color:var(--ink-3);margin:3px 0 8px}
+  .printdoc .pev .why{margin-bottom:8px}
+  .printdoc .pev .att{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .printdoc .pev .att img{max-width:100%;max-height:120mm;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff}
+  .printdoc .pev .errfull,.printdoc .pev details{display:none!important}
   .printdoc .pfoot{margin-top:5mm;padding-top:3mm;border-top:1px solid var(--line);font-size:10px;color:var(--ink-3)}
-  .printdoc .detail{border:0;box-shadow:none;padding:0}
-  .printdoc .err,.printdoc .logs,.printdoc .txt,.printdoc pre{white-space:pre-wrap;word-break:break-word}
+  .printdoc .err,.printdoc pre{white-space:pre-wrap;word-break:break-word}
 }
 `;
 
@@ -1789,28 +1815,71 @@ function buildPrintDoc(){
     const holder=h('span',{class:'logo',style:'display:inline-flex;width:40px;height:40px',html:html2});
     logo=holder;
   }
+  const verdict = f ? (f+' of '+s.total+' test'+(s.total===1?'':'s')+' failed'+(s.flaky?', '+s.flaky+' flaky':''))
+    : (ran===0 ? 'No tests ran' : 'All '+ran+' test'+(ran===1?'':'s')+' passed'+(s.flaky?', '+s.flaky+' flaky':'')+(s.skipped?' · '+s.skipped+' skipped':''));
+  // ---- page 1: executive summary ----
   pd.append(h('div',{class:'pcover'},
-    h('div',{style:'display:flex;align-items:center;gap:12px'}, logo,
-      h('div',{}, h('div',{style:'font-size:24px;font-weight:600;letter-spacing:-.02em'}, data.title),
-        h('div',{style:'color:var(--ink-3);font-size:12px;margin-top:3px'}, new Date(data.startTime).toLocaleString()+' · '+ms(data.duration)+' · '+data.workers+' worker'+(data.workers===1?'':'s')))),
-    data.options.project? h('div',{style:'color:var(--ink-2);font-size:13px;margin-top:8px'}, [data.options.project.name, data.options.project.version?'v'+data.options.project.version:null, data.options.project.team].filter(Boolean).join(' · ')) : null,
-    Object.keys(data.metadata).length? h('div',{style:'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px'}, Object.entries(data.metadata).map(([k,v])=>h('span',{class:'chip'}, k+' ', h('b',{},v)))) : null,
+    h('div',{class:'pcover-top'}, logo,
+      h('div',{}, h('div',{class:'pcover-title'}, data.title),
+        h('div',{class:'pcover-sub'}, (data.options.project?[data.options.project.name, data.options.project.version?'v'+data.options.project.version:null, data.options.project.team].filter(Boolean).join(' · ')+' · ':'')
+          + new Date(data.startTime).toLocaleString()+' · '+ms(data.duration)+' · '+data.workers+' worker'+(data.workers===1?'':'s')))),
+    Object.keys(data.metadata).length? h('div',{class:'pcover-meta'}, Object.entries(data.metadata).map(([k,v])=>h('span',{class:'chip'}, k+' ', h('b',{},v)))) : null,
+    h('div',{class:'pverdict '+(f?'bad':'ok')}, verdict),
     h('div',{class:'pcover-stats'},
       stat(rate+'%','Pass rate'), stat(s.passed,'Passed','var(--pass)'),
       f?stat(f,'Failed','var(--fail)'):null, s.flaky?stat(s.flaky,'Flaky','var(--flaky)'):null,
       s.skipped?stat(s.skipped,'Skipped','var(--ink-3)'):null, stat(s.total,'Total'))));
-  const sec=(title,node)=>{ if(node) pd.append(h('section',{class:'psec'}, h('h2',{class:'psec-h'},title), node)); };
-  sec('Overview', summary());
-  if(data.tests.some(t=>isFail(t.outcome)||t.outcome==='flaky')) sec('Failures', failuresView());
-  if(data.tests.length) sec('Graphs', graphsView());
-  const apiN=data.tests.reduce((a,t)=>a+t.results.reduce((b,r)=>b+r.api.length,0),0);
-  if(apiN) sec('API calls', apiView());
-  const order=[...data.tests].sort((a,b)=>((isFail(b.outcome)||b.outcome==='flaky')-(isFail(a.outcome)||a.outcome==='flaky'))||rank(a)-rank(b)||a.title.localeCompare(b.title));
-  const details=h('div',{});
-  for(const t of order){ const node=h('article',{class:'ptest'}); try{ renderDetail(t,node,t.results.length-1); }catch(e){} details.append(node); }
-  sec('Test details', details);
+  const pexec=h('div',{class:'pexec'});
+  pexec.append(h('div',{class:'pexec-card'}, h('div',{class:'psub-h'},'Pass rate'), donut()));
+  const envc=printEnvCard(); if(envc) pexec.append(envc);
+  pd.append(pexec);
+
+  // The first section flows right after the executive summary so page 1 is never half-empty;
+  // the rest start on a fresh page.
+  let first=true;
+  const sec=(title,node)=>{ if(!node) return; pd.append(h('section',{class:'psec'+(first?'':' brk')}, h('h2',{class:'psec-h'},title), node)); first=false; };
+  // ---- analytics, failure analysis, full inventory, evidence ----
+  if(data.tests.length) sec('Test analytics', graphsView());
+  if(f + s.flaky > 0) sec('Failure analysis', failuresView());
+  sec('All test cases', allTestsTable());
+  const bad=[...data.tests].filter(t=>isFail(t.outcome)||t.outcome==='flaky').sort((a,b)=>rank(a)-rank(b)||a.title.localeCompare(b.title));
+  if(bad.length){ const ev=h('div',{}); for(const t of bad) ev.append(printEvidence(t)); sec('Failure evidence', ev); }
   pd.append(h('div',{class:'pfoot'}, 'Generated by reportingLabs · '+new Date().toLocaleString()));
   document.body.append(pd);
+}
+function printEnvCard(){
+  if(!data.env||!data.env.length) return null;
+  return h('div',{class:'pexec-card'}, h('div',{class:'psub-h'},'Environment'),
+    h('dl',{class:'kv env'}, data.env.flatMap(r=>[h('dt',{},r.k), h('dd',{}, r.href? h('a',{href:r.href},r.v) : r.v)])));
+}
+function allTestsTable(){
+  const hasPri=data.tests.some(t=>t.meta.priority||t.meta.severity), hasOwn=data.tests.some(t=>t.meta.owner), multiProj=data.projects.length>1;
+  const cols=[['c-n','#'],['','Test'],['','Spec'], hasPri?['c-pri','Priority']:null, hasOwn?['c-own','Owner']:null, ['c-st','Status'], ['c-dur','Duration']].filter(Boolean);
+  const order=[...data.tests].sort((a,b)=>((isFail(b.outcome)||b.outcome==='flaky')-(isFail(a.outcome)||a.outcome==='flaky'))||rank(a)-rank(b)||a.file.localeCompare(b.file)||a.title.localeCompare(b.title));
+  let i=0;
+  return h('table',{class:'ptbl'},
+    h('colgroup',{}, cols.map(([c])=>h('col',{class:c||''}))),
+    h('thead',{}, h('tr',{}, cols.map(([,l])=>h('th',{},l)))),
+    h('tbody',{}, order.map(t=>{ i++; return h('tr',{}, [
+      h('td',{class:'num'}, String(i)),
+      h('td',{}, h('div',{class:'pt-name'}, t.title), t.path.length? h('div',{class:'pt-sub'}, t.path.join(' › ')) : null),
+      h('td',{}, h('span',{class:'pt-spec'}, t.file.split('/').pop()+(multiProj?' · '+t.project:''))),
+      hasPri? h('td',{}, [t.meta.priority,t.meta.severity].filter(Boolean).join(' · ')) : null,
+      hasOwn? h('td',{}, t.meta.owner||'') : null,
+      h('td',{}, h('span',{class:'pstatus'}, h('span',{class:'st '+t.outcome,style:'background:'+colorOf(bucket(t))}), label[t.outcome])),
+      h('td',{class:'num'}, ms(t.duration)),
+    ].filter(x=>x!==null)); })));
+}
+function printEvidence(t){
+  const r=t.results[t.results.length-1], e=r&&r.errors[0];
+  const art=h('article',{class:'pev'});
+  art.append(h('div',{class:'pev-head'}, h('span',{class:'st',style:'background:'+colorOf(bucket(t))}), h('span',{class:'pev-title'}, t.title), h('span',{class:'badge '+t.outcome}, label[t.outcome])));
+  art.append(h('div',{class:'pev-loc'}, t.file+':'+t.line+(data.projects.length>1?' · '+t.project:'')+' · '+ms(t.duration)+(t.results.length>1?' · '+t.results.length+' attempts':'')+(t.meta.owner?' · '+t.meta.owner:'')+(t.meta.priority?' · '+t.meta.priority:'')));
+  if(e){ if(e.explain) art.append(whyView(e.explain)); art.append(errorBody(e)); }
+  else art.append(h('div',{style:'color:var(--ink-3)'}, t.outcome==='flaky'?'Passed on retry after an earlier failure.':'No error message was recorded.'));
+  const imgs=(r?r.attachments:[]).filter(a=>a.src&&(a.contentType||'').startsWith('image/')&&!/-(expected|actual|diff)(\.\w+)?$/.test(a.name));
+  if(imgs.length) art.append(h('div',{class:'att'}, imgs.slice(0,2).map(a=>h('figure',{}, h('img',{src:a.src,alt:a.name}), h('figcaption',{},a.name)))));
+  return art;
 }
 function teardownPrintDoc(){
   const pd=document.querySelector('.printdoc'); if(pd) pd.remove();
