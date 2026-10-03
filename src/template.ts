@@ -714,12 +714,20 @@ html,body{font-size:var(--fs)}
   .printdoc .apitbl td.t:last-child,.printdoc .num,.printdoc .pstatus,.printdoc .since-txt{white-space:nowrap!important;overflow-wrap:normal!important}
   /* only genuinely unbreakable strings (urls, file paths, selectors) may break mid-token */
   .printdoc .apitbl .u,.printdoc .api-head .u,.printdoc .pt-spec,.printdoc .loc,.printdoc .file,.printdoc .clu .msg,.printdoc .clu2 .msg{overflow-wrap:anywhere}
-  .printdoc .psec{padding-top:1mm}
-  .printdoc .psec.brk{break-before:page}
-  .printdoc .psec-h{font-size:16px;font-weight:600;letter-spacing:-.01em;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line);color:var(--ink)}
-  .printdoc .card,.printdoc .gchart,.printdoc figure,.printdoc .clu2 li,.printdoc .attn2,.printdoc .kpi,.printdoc .hm,.printdoc .pev,.printdoc .pexec-card,.printdoc tr{break-inside:avoid}
-  .printdoc .psec-h,.printdoc h4{break-after:avoid}
-  .printdoc .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;margin:0}
+  /* Content flows continuously — no forced page breaks between sections, which were leaving
+     whole pages nearly empty. Cards/rows just avoid being split across a page. */
+  .printdoc .psec{padding-top:0;margin-top:18px}
+  .printdoc .psec-h{font-size:16px;font-weight:600;letter-spacing:-.01em;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line);color:var(--ink);break-after:avoid}
+  /* Only small, atomic blocks avoid a page split. Big cards (clusters, needs-attention, the tables)
+     may flow across pages — keeping them whole is what left pages half-empty. */
+  .printdoc .gchart,.printdoc figure,.printdoc .kpi,.printdoc .hm,.printdoc .pev,.printdoc .pexec-card,.printdoc tr{break-inside:avoid}
+  .printdoc h4{break-after:avoid}
+  /* CSS grid does not fragment across print pages, so a tall two-column grid jumps to the next page
+     and leaves a gap. In print everything becomes a single full-width column that flows naturally. */
+  .printdoc .grid{display:block!important;margin:0}
+  .printdoc .grid>*{grid-column:auto!important;width:auto!important;max-width:none!important;margin:0 0 12px!important;break-inside:avoid}
+  .printdoc .grid>.card.w12,.printdoc .grid>.fail-rail,.printdoc .grid>.fx-tools{break-inside:auto}
+  .printdoc .graphs-grid>*{break-inside:avoid}
   .printdoc .list,.printdoc .nav,.printdoc .band,.printdoc .stripe,.printdoc .fx-tools .btn,.printdoc .fx-tools .spacer{display:none!important}
   /* drop interactive-only chrome and anything that cannot live on paper */
   .printdoc .actions,.printdoc .gchart-head button,.printdoc .vids,.printdoc .cmp,.printdoc .hint-kbd,.printdoc .mask-note,.printdoc .clu2 .who .ex{display:none!important}
@@ -738,7 +746,7 @@ html,body{font-size:var(--fs)}
   .printdoc .pstat{border:1px solid var(--line);border-radius:10px;padding:9px 15px;min-width:84px;background:var(--surface)}
   .printdoc .pstat .n{font-size:25px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
   .printdoc .pstat .l{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
-  .printdoc .pexec{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+  .printdoc .pexec{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px;align-items:start}
   .printdoc .pexec-card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--surface)}
   .printdoc .psub-h{font-size:12.5px;font-weight:600;color:var(--ink);margin:0 0 10px}
   /* ---- the all-tests table ---- */
@@ -761,8 +769,10 @@ html,body{font-size:var(--fs)}
   .printdoc .pev-title{font-size:14px;font-weight:600;letter-spacing:-.01em}
   .printdoc .pev-loc{font:11px var(--mono);color:var(--ink-3);margin:3px 0 8px}
   .printdoc .pev .why{margin-bottom:8px}
-  .printdoc .pev .att{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
-  .printdoc .pev .att img{max-width:100%;max-height:120mm;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff}
+  .printdoc .pev .att{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+  .printdoc .pev .att figure{flex:1 1 320px;min-width:0;margin:0}
+  .printdoc .pev .att img{width:100%;max-height:115mm;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff}
+  .printdoc .pev .att figcaption{font:11px var(--mono);color:var(--ink-3);padding:5px 7px;background:var(--surface-2);border-radius:0 0 6px 6px;margin-top:-6px}
   .printdoc .pev .errfull,.printdoc .pev details{display:none!important}
   .printdoc .pfoot{margin-top:5mm;padding-top:3mm;border-top:1px solid var(--line);font-size:10px;color:var(--ink-3)}
   .printdoc .err,.printdoc pre{white-space:pre-wrap;word-break:break-word}
@@ -1095,7 +1105,7 @@ function header(){
   const pal = h('select',{class:'pal','aria-label':'Palette',onchange:e=>{ html.setAttribute('data-palette',e.target.value); try{localStorage.setItem('rl-palette',e.target.value);}catch(e){} }},
     [['lab','Blue'],['ocean','Ocean'],['ember','Ember'],['mono','Mono']].map(([v,l])=>h('option',{value:v,selected:html.getAttribute('data-palette')===v},l)));
   const copy = h('button',{class:'btn',onclick:e=>copyText(summaryMarkdown(),e.currentTarget,'Copied for Slack')}, 'Copy summary');
-  const pdf = h('button',{class:'btn',title:'Save the whole report as a PDF — every section, chart, cluster and screenshot, print-friendly',onclick:()=>{ try{window.print();}catch(e){} }}, 'Export PDF');
+  const pdf = h('button',{class:'btn',title:'Save the whole report as a PDF — every section, chart, cluster and screenshot, print-friendly',onclick:()=>exportPdf()}, 'Export PDF');
   return h('header',{class:'hdr'},
     data.options.logo ? h('img',{class:'logo brand',src:data.options.logo,alt:''}) : h('div',{class:'logo',title:'Generated by reportingLabs','aria-label':'reportingLabs'}, document.getElementById('rl-logo').content.cloneNode(true)),
     data.options.project ? h('div',{class:'proj-blk'}, h('h1',{}, data.title),
@@ -1907,7 +1917,20 @@ function teardownPrintDoc(){
   const html=document.documentElement, prev=html.getAttribute('data-rl-theme-prev');
   if(prev!=null){ if(prev) html.setAttribute('data-theme',prev); else html.removeAttribute('data-theme'); html.removeAttribute('data-rl-theme-prev'); }
 }
-window.addEventListener('beforeprint', buildPrintDoc);
+// Build the print document and wait for every screenshot (a data: URI) to actually decode, so it
+// is painted — otherwise a print fired right after the DOM is built captures blank image boxes.
+async function preparePrint(){
+  buildPrintDoc();
+  try{ await Promise.all([...document.querySelectorAll('.printdoc img')].map(im=> im.decode? im.decode().catch(()=>{}) : Promise.resolve())); }catch(e){}
+  return document.querySelectorAll('.printdoc img').length;
+}
+async function exportPdf(){
+  await preparePrint();
+  try{ window.print(); }catch(e){}
+}
+// A headless driver (the reporter's auto-generated report.pdf) awaits this, then calls page.pdf().
+window.reportingLabsPreparePrint = preparePrint;
+window.addEventListener('beforeprint', buildPrintDoc);   // native Ctrl+P: build if not already built
 window.addEventListener('afterprint', teardownPrintDoc);
 })();
 `;
