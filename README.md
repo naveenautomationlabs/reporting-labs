@@ -613,6 +613,10 @@ Your Slack step can then read `results.json` for pass / fail counts and top fail
 
 The same report, from Java: `dev.reportinglabs` on Maven Central, for TestNG and JUnit 5, with zero-code add-ons for Selenium, REST Assured and Playwright for Java, and a Cucumber JVM plugin (one row per scenario, Given/When/Then as steps). Source: [reporting-labs-java](https://github.com/naveenautomationlabs/reporting-labs-java). Guides: [reportinglabs.dev/get-started/java](https://reportinglabs.dev/get-started/java).
 
+## Python teams
+
+The same report, from Python: `pip install reporting-labs` ([PyPI](https://pypi.org/project/reporting-labs/)). A pytest plugin that turns on the moment it is installed, with zero-code support for Playwright and Selenium, and a Robot Framework listener (one row per test, keywords as steps). Source: [reporting-labs-python](https://github.com/naveenautomationlabs/reporting-labs-python). Guides: [reportinglabs.dev/get-started/python](https://reportinglabs.dev/get-started/python).
+
 ## Roadmap
 
 - WebdriverIO, Cypress, Jest/Vitest and JUnit XML adapters
