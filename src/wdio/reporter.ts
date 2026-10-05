@@ -39,6 +39,7 @@ interface RunnerPayload { cid?: string; capabilities?: Record<string, unknown>; 
 interface SuitePayload { title?: string; type?: string }
 interface TestPayload { uid?: string; title?: string; file?: string; duration?: number; retries?: number; error?: Error; errors?: Error[]; pendingReason?: string; pending?: boolean }
 interface CommandPayload { command?: string; method?: string; endpoint?: string; body?: unknown }
+interface CommandAfterPayload { command?: string; endpoint?: string; result?: unknown }
 
 export interface ReportingLabsWdioOptions {
   outputFolder?: string;
@@ -61,6 +62,7 @@ export default class ReportingLabsWdioReporter extends EventEmitter {
   private rlTests: TestData[] = [];
   private specs: string[] = [];
   private cur?: { test: TestData; result: ResultData; stepStack: StepData[] };
+  private elTypes: Record<string, string> = {};
   private cid = '';
   private capsName = '';
   private runStatus: 'passed' | 'failed' = 'passed';
@@ -82,7 +84,7 @@ export default class ReportingLabsWdioReporter extends EventEmitter {
     this.on('test:skip', (t: TestPayload) => this.safe(() => this.endTest(t, 'skipped', t.pendingReason)));
     this.on('test:pending', (t: TestPayload) => this.safe(() => this.endTest(t, 'skipped', t.pendingReason)));
     this.on('client:beforeCommand', (c: CommandPayload) => this.safe(() => this.onBeforeCommand(c)));
-    this.on('client:afterCommand', () => this.safe(() => this.onAfterCommand()));
+    this.on('client:afterCommand', (c: CommandAfterPayload) => this.safe(() => this.onAfterCommand(c)));
     this.on('runner:end', () => this.safe(() => this.onRunnerEnd()));
   }
 
@@ -130,7 +132,10 @@ export default class ReportingLabsWdioReporter extends EventEmitter {
 
   private onBeforeCommand(cmd: CommandPayload): void {
     if (!this.cur) return;
-    const title = cmdTitle(cmd, this.masker);
+    // a value typed into a password / secret field is masked: WDIO reads the element's `type` property
+    // right before typing, so look up what we learned for this element id.
+    const fieldType = this.elTypes[elementId(cmd.endpoint)] || '';
+    const title = cmdTitle(cmd, this.masker, fieldType);
     if (!title) return;
     const step: StepData & { _start?: number } = { title, category: 'wdio', duration: 0, steps: [] };
     step._start = Date.now();
@@ -139,7 +144,13 @@ export default class ReportingLabsWdioReporter extends EventEmitter {
     this.cur.stepStack.push(step);
   }
 
-  private onAfterCommand(): void {
+  private onAfterCommand(cmd: CommandAfterPayload): void {
+    // record element input types so the next sendKeys to that element can be masked
+    if (cmd && cmd.command === 'getElementProperty' && /\/property\/type$/.test(cmd.endpoint || '')) {
+      const id = elementId(cmd.endpoint);
+      const v = (cmd.result as { value?: unknown })?.value;
+      if (id && typeof v === 'string') this.elTypes[id] = v;
+    }
     if (!this.cur) return;
     const step = this.cur.stepStack.pop() as (StepData & { _start?: number }) | undefined;
     if (step) { step.duration = Date.now() - (step._start || Date.now()); delete step._start; }
@@ -227,7 +238,12 @@ function capsName(caps?: Record<string, unknown>): string {
 
 function stripAnsi(s: string): string { return s.replace(/\x1b\[[0-9;]*m/g, ''); }
 
-function cmdTitle(cmd: CommandPayload, masker: Mask): string | null {
+function elementId(endpoint?: string): string {
+  const m = /\/element\/([^/]+)\//.exec(endpoint || '');
+  return m ? m[1] : '';
+}
+
+function cmdTitle(cmd: CommandPayload, masker: Mask, fieldType = ''): string | null {
   const name = cmd.command || endpointCommand(cmd.endpoint);
   if (!name) return null;
   const verb = CMD[name];
@@ -239,7 +255,7 @@ function cmdTitle(cmd: CommandPayload, masker: Mask): string | null {
   }
   if (name === 'elementSendKeys' || name === 'setValue' || name === 'addValue') {
     let text = Array.isArray(body.text) ? (body.text as unknown[]).join('') : String(body.text ?? body.value ?? '');
-    text = masker.maskStr(text);
+    text = /password|hidden/i.test(fieldType) ? '****' : masker.maskStr(text);
     return `${verb} "${short(text)}"`;
   }
   if (name === 'executeScript' || name === 'executeAsyncScript') {
