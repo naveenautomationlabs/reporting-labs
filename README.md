@@ -617,9 +617,27 @@ The same report, from Java: `dev.reportinglabs` on Maven Central, for TestNG and
 
 The same report, from Python: `pip install reporting-labs` ([PyPI](https://pypi.org/project/reporting-labs/)). A pytest plugin that turns on the moment it is installed, with zero-code support for Playwright and Selenium, and a Robot Framework listener (one row per test, keywords as steps). Source: [reporting-labs-python](https://github.com/naveenautomationlabs/reporting-labs-python). Guides: [reportinglabs.dev/get-started/python](https://reportinglabs.dev/get-started/python).
 
+## WebdriverIO
+
+The same report, from a WebdriverIO suite (Mocha, Jasmine or Cucumber): one row per test, WebDriver commands as steps, a screenshot on failure, failure clusters and the PDF export. WebdriverIO runs a reporter per spec, so reportingLabs writes a part per runner and stitches them together in `onComplete`:
+
+```ts
+// wdio.conf.ts
+import ReportingLabsReporter, { reportingLabsComplete } from 'reporting-labs/wdio';
+
+export const config = {
+  reporters: ['spec', [ReportingLabsReporter, { outputFolder: 'reporting-labs' }]],
+  async onComplete() {
+    await reportingLabsComplete({ outputFolder: 'reporting-labs', title: 'Web E2E' });
+  },
+};
+```
+
+Guide: [reportinglabs.dev/get-started/webdriverio](https://reportinglabs.dev/get-started/webdriverio).
+
 ## Roadmap
 
-- WebdriverIO, Cypress, Jest/Vitest and JUnit XML adapters
+- Cypress, Jest/Vitest and JUnit XML adapters
 - AI summary of failures (bring your own API key)
 - Hosted history dashboard across branches and projects
 

@@ -1,7 +1,7 @@
 {
   "name": "reporting-labs",
   "version": "0.6.11",
-  "description": "reportingLabs – beautiful, customizable single-file HTML test reports. One line of config. Playwright adapter included, more runners on the way.",
+  "description": "reportingLabs \u2013 beautiful, customizable single-file HTML test reports. One line of config. Playwright adapter included, more runners on the way.",
   "keywords": [
     "test-report",
     "html-report",
@@ -29,6 +29,10 @@
     "./auto": {
       "types": "./dist/auto.d.ts",
       "default": "./dist/auto.js"
+    },
+    "./wdio": {
+      "types": "./dist/wdio/index.d.ts",
+      "default": "./dist/wdio/index.js"
     }
   },
   "bin": {
@@ -69,5 +73,10 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    }
   }
 }

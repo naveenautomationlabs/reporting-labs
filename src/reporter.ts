@@ -550,12 +550,12 @@ export function detectEnvName(env: NodeJS.ProcessEnv, envVar?: string): string |
   return undefined;
 }
 
-function ciRunLabel(env: NodeJS.ProcessEnv): string | undefined {
+export function ciRunLabel(env: NodeJS.ProcessEnv): string | undefined {
   const n = env.GITHUB_RUN_NUMBER || env.BUILD_NUMBER || env.CI_PIPELINE_IID || env.CIRCLE_BUILD_NUM || env.BUILD_BUILDNUMBER || env.BITBUCKET_BUILD_NUMBER;
   return n ? `#${n}` : undefined;
 }
 
-function ciLink(env: NodeJS.ProcessEnv): { name: string; url?: string } | null {
+export function ciLink(env: NodeJS.ProcessEnv): { name: string; url?: string } | null {
   if (env.GITHUB_ACTIONS && env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID)
     return { name: `GitHub Actions #${env.GITHUB_RUN_NUMBER ?? env.GITHUB_RUN_ID}`, url: `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}` };
   if (env.GITLAB_CI && env.CI_JOB_URL) return { name: `GitLab CI #${env.CI_PIPELINE_IID ?? env.CI_JOB_ID}`, url: env.CI_JOB_URL };
@@ -568,7 +568,7 @@ function ciLink(env: NodeJS.ProcessEnv): { name: string; url?: string } | null {
   return null;
 }
 
-function gitInfo(cwd: string, env: NodeJS.ProcessEnv): { sha?: string; author?: string; subject?: string; branch?: string; url?: string } {
+export function gitInfo(cwd: string, env: NodeJS.ProcessEnv): { sha?: string; author?: string; subject?: string; branch?: string; url?: string } {
   const out: { sha?: string; author?: string; subject?: string; branch?: string; url?: string } = {};
   const run = (cmd: string) => { try { return execSync(cmd, { cwd, stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 }).toString().trim(); } catch { return ''; } };
   const line = run('git log -1 --format=%H%x1f%an%x1f%s');
