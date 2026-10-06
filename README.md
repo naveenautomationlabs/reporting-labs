@@ -328,7 +328,7 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `embedVideos` | `false` | Videos inside the HTML too (bigger file, no folder issues) |
 | `emitJson` | `true` | Also write `report.json` alongside `index.html` (used by `merge`) |
 | `jsonFile` | `'report.json'` | File name of the JSON blob |
-| `pdf` | `true` | Also write `report.pdf` (light theme, print-ready) with Playwright's Chromium. `false` turns it off; `{ file: 'run.pdf' }` renames it. The Export PDF button in the report works either way |
+| `pdf` | `true` | Also write `report.pdf` (light theme, print-ready), printed by Playwright's Chromium or an installed Chrome / Edge, whatever browser the tests ran on. `false` turns it off; `{ file: 'run.pdf' }` renames it; `{ chromePath }` (or `CHROME_PATH`) names the browser. The Export PDF button in the report works either way |
 | `embedFonts` | `true` | Bundle the fonts (~140 KB) so it looks the same offline |
 | `announce` | `true` | Print the report path after the run |
 | `open` | `'on-failure'` | Open the report in the browser after the run: `'on-failure'`, `'always'` or `'never'`. Never opens in CI |

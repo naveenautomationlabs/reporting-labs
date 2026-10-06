@@ -1,7 +1,7 @@
 {
   "name": "reporting-labs",
-  "version": "0.6.11",
-  "description": "reportingLabs \u2013 beautiful, customizable single-file HTML test reports. One line of config. Playwright adapter included, more runners on the way.",
+  "version": "0.6.12",
+  "description": "reportingLabs – beautiful, customizable single-file HTML test reports. One line of config. Playwright adapter included, more runners on the way.",
   "keywords": [
     "test-report",
     "html-report",

@@ -12,6 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { renderHtml } from '../template';
 import { makeMasker } from '../mask';
+import { writeReportPdf } from '../pdf';
 import type { ReportData, TestData, HistoryEntry, Status } from '../types';
 import { collectEnv, ciRunLabel } from './env';
 
@@ -20,7 +21,7 @@ export interface ReportingLabsCompleteOptions {
   outputFile?: string;
   jsonFile?: string;
   emitJson?: boolean;
-  pdf?: boolean | { file?: string };
+  pdf?: boolean | { file?: string; chromePath?: string };
   title?: string;
   logo?: string;
   accent?: string;
@@ -149,24 +150,12 @@ export async function reportingLabsComplete(options: ReportingLabsCompleteOption
   return htmlFile;
 }
 
-/** Render the report's print layout to a PDF with the Chromium Playwright ships. Best-effort. */
+/** report.pdf next to the HTML; see writeReportPdf for which browser prints it (an installed Chrome or
+ *  Edge when the project has no Playwright). Never fails the run. */
 async function writePdf(htmlFile: string, outputFolder: string, options: ReportingLabsCompleteOptions): Promise<void> {
-  const name = (typeof options.pdf === 'object' && options.pdf?.file) || 'report.pdf';
-  const pdfFile = path.join(outputFolder, name);
-  try {
-    const { chromium } = await import('@playwright/test');
-    const { pathToFileURL } = await import('url');
-    const browser = await chromium.launch();
-    try {
-      const page = await browser.newPage();
-      await page.goto(pathToFileURL(htmlFile).href, { waitUntil: 'load' });
-      await page.evaluate(() => (window as unknown as { reportingLabsPreparePrint?: () => Promise<unknown> }).reportingLabsPreparePrint?.());
-      await page.pdf({ path: pdfFile, printBackground: true, preferCSSPageSize: true });
-    } finally {
-      await browser.close();
-    }
-    if (options.announce !== false) console.log(`  reporting-labs: PDF written to ${path.relative(process.cwd(), pdfFile)}`);
-  } catch (e) {
-    if (options.announce !== false) console.log(`  reporting-labs: PDF skipped — ${String((e as Error).message).split('\n')[0]}`);
-  }
+  const pdfOpt = typeof options.pdf === 'object' ? options.pdf : {};
+  const pdfFile = path.join(outputFolder, pdfOpt.file || 'report.pdf');
+  const r = await writeReportPdf(htmlFile, pdfFile, pdfOpt.chromePath);
+  if (options.announce === false) return;
+  console.log(r.ok ? `  reporting-labs: PDF written to ${path.relative(process.cwd(), pdfFile)}` : `  reporting-labs: PDF skipped — ${r.reason}`);
 }

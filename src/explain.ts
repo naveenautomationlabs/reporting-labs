@@ -6,7 +6,7 @@
 export type ErrorKind =
   | 'not-found' | 'ambiguous' | 'not-visible' | 'blocked' | 'disabled' | 'detached' | 'wrong-element'
   | 'assertion' | 'visual' | 'navigation' | 'network' | 'api' | 'test-timeout' | 'hook-timeout'
-  | 'closed' | 'script' | 'file' | 'thrown';
+  | 'closed' | 'crashed' | 'script' | 'file' | 'thrown';
 
 export interface ErrorExplain {
   kind: ErrorKind;
@@ -42,6 +42,7 @@ const LABELS: Record<ErrorKind, string> = {
   'test-timeout': 'Test timed out',
   'hook-timeout': 'Hook timed out',
   'closed': 'Browser closed early',
+  'crashed': 'Browser crashed',
   'script': 'Error in test code',
   'file': 'File not found',
   'thrown': 'Test threw an error',
@@ -74,6 +75,9 @@ export function explainError(raw: string): ErrorExplain | undefined {
     const where = action ? ` It was stuck in ${action}` + (locator ? ` on ${locator}` : '') + '.' : '';
     return out('test-timeout', `The whole test took longer than ${secs(ms)}.${where}`, 'Find the slow step in the Steps list below. Raise timeout in playwright.config.ts only if the flow is really that long.', { timeoutMs: ms, action, locator });
   }
+
+  // ── The browser process died (memory, too many workers): infrastructure, not the app or the test ──
+  if (/Target crashed|Page crashed|page has crashed|Renderer process crashed|tab crashed|session deleted because of page crash|chrome not reachable|Browsing context has been discarded/i.test(msg)) return out('crashed', 'The browser crashed while the test was running.', 'Not a bug in the app or the test: the browser process died, usually from memory pressure or too many parallel workers. Re-run it; if it keeps happening, lower workers or give the machine more memory.', { action });
 
   // ── Strict mode ──────────────────────────────────────────────────────────
   m = msg.match(/strict mode violation: (.+?) resolved to (\d+) elements/s);

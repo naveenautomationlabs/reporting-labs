@@ -9,6 +9,7 @@ import { ReportingLabsOptions, ReportData, TestData, ResultData, StepData, Attac
 import { renderHtml } from './template';
 import { makeMasker, parseCsv } from './mask';
 import { explainError } from './explain';
+import { writeReportPdf } from './pdf';
 import type { HistoryEntry, LinkTemplate } from './types';
 
 const DEFAULT_EMBED_LIMIT = 2 * 1024 * 1024;
@@ -212,27 +213,13 @@ export default class ReportingLabsReporter implements Reporter {
     this.maybeOpen(file, result);
   }
 
-  /** Render the report's print layout to a PDF with the Chromium that Playwright already ships. Best-effort:
-   *  a failure here (no browser, sandbox) never fails the run — the report and its Export PDF button remain. */
+  /** report.pdf next to the HTML; see writeReportPdf for which browser prints it. Never fails the run. */
   private async writePdf(htmlFile: string) {
-    const name = (typeof this.options.pdf === 'object' && this.options.pdf?.file) || 'report.pdf';
-    const pdfFile = path.join(this.outDir, name);
-    try {
-      const { chromium } = await import('@playwright/test');
-      const { pathToFileURL } = await import('url');
-      const browser = await chromium.launch();
-      try {
-        const page = await browser.newPage();
-        await page.goto(pathToFileURL(htmlFile).href, { waitUntil: 'load' });
-        await page.evaluate(() => (window as unknown as { reportingLabsPreparePrint?: () => Promise<unknown> }).reportingLabsPreparePrint?.());
-        await page.pdf({ path: pdfFile, printBackground: true, preferCSSPageSize: true });
-      } finally {
-        await browser.close();
-      }
-      if (this.options.announce !== false) console.log(`  reporting-labs: PDF written to ${path.relative(process.cwd(), pdfFile)}\n`);
-    } catch (e) {
-      if (this.options.announce !== false) console.log(`  reporting-labs: PDF skipped — ${String((e as Error).message).split('\n')[0]}\n`);
-    }
+    const pdfOpt = typeof this.options.pdf === 'object' ? this.options.pdf : {};
+    const pdfFile = path.join(this.outDir, pdfOpt.file || 'report.pdf');
+    const r = await writeReportPdf(htmlFile, pdfFile, pdfOpt.chromePath);
+    if (this.options.announce === false) return;
+    console.log(r.ok ? `  reporting-labs: PDF written to ${path.relative(process.cwd(), pdfFile)}\n` : `  reporting-labs: PDF skipped — ${r.reason}\n`);
   }
 
   /** One short list of tests that carry no meta() at all, so the whole team keeps the report useful. */
