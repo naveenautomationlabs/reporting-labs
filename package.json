@@ -71,6 +71,10 @@
   "bugs": {
     "url": "https://github.com/naveenautomationlabs/reporting-labs/issues"
   },
+  "funding": {
+    "type": "individual",
+    "url": "https://reportinglabs.dev/support"
+  },
   "engines": {
     "node": ">=18"
   },
