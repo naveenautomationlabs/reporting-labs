@@ -141,6 +141,7 @@ test('completes purchase', async ({ page }) => {
 - If a test has both, **`meta()` wins** over the comment.
 - Only a comment touching the test counts: a file header separated by a blank line is ignored, and so are JSDoc tags like `@param`.
 - Works with the WebdriverIO reporter too (above `it()` / `describe()`). Turn it off with `commentMeta: false`.
+- **Snippets:** `npx reporting-labs snippets` adds VS Code snippets, so you type `rlmeta` (or `rltest`, `rlit`, `rldescribe`) and press Tab instead of writing the comment by hand. `init` adds them too.
 
 ### `log()`: a line in the report
 
