@@ -121,27 +121,47 @@ One line per test. With this the report can rank failures by priority, group the
 - Forgot one? After every run the console lists the tests that have no `meta()`, with file and line. Turn it off with `warnMissingMeta: false`.
 - `priority`, `severity`, `feature` and `owner` each get a tab in the Breakdown chart and a filter on the Tests page. Want the same for your own key, say `meta({ team: 'web' })`? Add it to `dimensions` in the config: `dimensions: ['priority', 'severity', 'feature', 'owner', 'team']`.
 
-### Or write it as a comment (no code change)
+### Or write it as a comment (your choice)
 
-`meta()` stays the main way. If your team prefers not to add calls to the tests, the same meta can sit in a comment right above the test or `test.describe`:
+There are **two ways** to add meta. Both give **exactly the same report**, so use whichever you like:
+
+| | Way 1: `meta()` | Way 2: a comment |
+|---|---|---|
+| Where | one line inside the test | a comment right above the test |
+| Import needed | yes | no |
 
 ```ts
+// Way 1: meta() in the test
+test('completes purchase', async ({ page }) => {
+  meta({ priority: 'P0', owner: 'naveen', feature: 'payment', story: 'SHOP-250' });
+  // ... your test as usual
+});
+
+// Way 2: a comment above the test, no import, no code change
 /**
- * Completes a purchase with a saved card.
  * @priority P0  @owner naveen  @feature payment  @story SHOP-250
  * @smoke
  */
 test('completes purchase', async ({ page }) => {
-  // ... your test as usual, no meta() needed
+  // ... your test as usual
 });
 ```
 
-- `@key value` pairs become meta (known keys, plus keys in `dimensions` or `links`). A line of bare `@words` (` * @smoke @regression`) becomes tags, so `@P0` and `@critical` still set priority and severity; a mention inside a sentence ("reported by @naveen") is ignored.
-- A comment above `test.describe` applies to every test inside; the test's own comment wins over it.
-- If a test has both, **`meta()` wins** over the comment.
-- Only a comment touching the test counts: a file header separated by a blank line is ignored, and so are JSDoc tags like `@param`.
-- Works with the WebdriverIO reporter too (above `it()` / `describe()`). Turn it off with `commentMeta: false`.
-- **Snippets:** `npx reporting-labs snippets` adds VS Code snippets, so you type `rlmeta` (or `rltest`, `rlit`, `rldescribe`) and press Tab instead of writing the comment by hand. `init` adds them too.
+- **Already using `meta()`?** Nothing changes. Comments are only an extra option.
+- **Mix them freely.** Some tests with `meta()`, others with a comment. If one test has both, `meta()` wins.
+- **For a whole group:** a comment above `test.describe` applies to every test inside it.
+- **Tags:** a line with only `@words` (`@smoke @regression`) becomes tags. `@P0` sets the priority, `@critical` the severity.
+- **Your old comments are safe.** A comment with an empty line before the test, a name in a sentence ("reported by @naveen"), unknown keys and JSDoc tags like `@param` are all ignored.
+- **WebdriverIO** reads them too, above `it()` and `describe()`.
+- Turn it off with `commentMeta: false`.
+
+**Don't type it by hand: install the snippets.** In VS Code:
+
+1. In the project folder, run `npx reporting-labs snippets` (`npx reporting-labs init` already does this). It creates `.vscode/reporting-labs.code-snippets`.
+2. In a test file, type `rlmeta` and press **Tab**. The comment appears; pick the priority from the list, then **Tab** to the next field.
+3. Commit the `.vscode` file so the whole team gets the snippets.
+
+Also there: `rltest` (comment + `test()`), `rlit` (comment + `it()`), `rldescribe` (a `describe` with the comment). For IntelliJ / WebStorm and Eclipse, see [Install the editor snippets](https://reportinglabs.dev/features/meta-comments#install-the-editor-snippets).
 
 ### `log()`: a line in the report
 
@@ -362,7 +382,8 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `embedFonts` | `true` | Bundle the fonts (~140 KB) so it looks the same offline |
 | `announce` | `true` | Print the report path after the run |
 | `open` | `'on-failure'` | Open the report in the browser after the run: `'on-failure'`, `'always'` or `'never'`. Never opens in CI |
-| `warnMissingMeta` | `true` | After the run, list the tests that have no `meta()` in the console, so nobody on the team forgets |
+| `commentMeta` | `true` | Also read meta from the comment above a test or `describe` (`/** @priority P0 @owner naveen */`). `meta()` wins when both are there. `false` reads no comments |
+| `warnMissingMeta` | `true` | After the run, list the tests that have no meta (no `meta()` and no comment) in the console, so nobody on the team forgets |
 
 **Runtime overrides.** `REPORTING_LABS_METADATA_<KEY>` sets a header chip from the environment (`REPORTING_LABS_METADATA_ENV=qa`, `REPORTING_LABS_METADATA_RELEASE=2.3`) and `REPORTING_LABS_TITLE`, `_THEME`, `_PALETTE`, `_ACCENT`, `_LOGO` the matching option; they win over the config. The env chip resolves in this order: `REPORTING_LABS_METADATA_ENV`, the variable `envVar` names, the conventional names (`ENV`, `TEST_ENV`, `APP_ENV`, `TARGET_ENV`, `CI_ENVIRONMENT_NAME`, anything ending in `_ENV`), then `metadata.env` in the config.
 
