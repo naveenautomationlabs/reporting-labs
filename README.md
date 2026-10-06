@@ -305,8 +305,6 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `project` | – | `{ name, version, team, url }` shown under the title |
 | `metadata` | `{}` | Chips in the header, e.g. `{ env: 'staging', build: '#1842' }`. `build` labels the run in the trend; in CI the run number is used when it is not set. The environment name is also read from the process environment and wins over `env` here: `ENV`, `TEST_ENV`, `APP_ENV`, `TARGET_ENV` and friends, or any variable ending in `_ENV` / `_ENVIRONMENT` (`OPENCART_ENV`), so a config that says `local` still labels CI reports `dev`, `qa`, `stage` |
 | `envVar` | – | Name of the variable that holds the environment name, when the detection cannot guess it |
-
-**Runtime overrides.** `REPORTING_LABS_METADATA_<KEY>` sets a header chip from the environment (`REPORTING_LABS_METADATA_ENV=qa`, `REPORTING_LABS_METADATA_RELEASE=2.3`) and `REPORTING_LABS_TITLE`, `_THEME`, `_PALETTE`, `_ACCENT`, `_LOGO` the matching option; they win over the config. The env chip resolves in this order: `REPORTING_LABS_METADATA_ENV`, the variable `envVar` names, the conventional names (`ENV`, `TEST_ENV`, `APP_ENV`, `TARGET_ENV`, `CI_ENVIRONMENT_NAME`, anything ending in `_ENV`), then `metadata.env` in the config.
 | `env` | – | Extra rows on the Environment card |
 | `links` | `{}` | Turn meta keys into links. `{id}` is replaced by the value. An object `{ url, display }` builds the URL from several fields of an object passed to `meta()`, see below |
 | `maskKeys` | `[]` | Extra keys to mask as `****` |
@@ -330,10 +328,13 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `embedVideos` | `false` | Videos inside the HTML too (bigger file, no folder issues) |
 | `emitJson` | `true` | Also write `report.json` alongside `index.html` (used by `merge`) |
 | `jsonFile` | `'report.json'` | File name of the JSON blob |
+| `pdf` | `true` | Also write `report.pdf` (light theme, print-ready) with Playwright's Chromium. `false` turns it off; `{ file: 'run.pdf' }` renames it. The Export PDF button in the report works either way |
 | `embedFonts` | `true` | Bundle the fonts (~140 KB) so it looks the same offline |
 | `announce` | `true` | Print the report path after the run |
 | `open` | `'on-failure'` | Open the report in the browser after the run: `'on-failure'`, `'always'` or `'never'`. Never opens in CI |
 | `warnMissingMeta` | `true` | After the run, list the tests that have no `meta()` in the console, so nobody on the team forgets |
+
+**Runtime overrides.** `REPORTING_LABS_METADATA_<KEY>` sets a header chip from the environment (`REPORTING_LABS_METADATA_ENV=qa`, `REPORTING_LABS_METADATA_RELEASE=2.3`) and `REPORTING_LABS_TITLE`, `_THEME`, `_PALETTE`, `_ACCENT`, `_LOGO` the matching option; they win over the config. The env chip resolves in this order: `REPORTING_LABS_METADATA_ENV`, the variable `envVar` names, the conventional names (`ENV`, `TEST_ENV`, `APP_ENV`, `TARGET_ENV`, `CI_ENVIRONMENT_NAME`, anything ending in `_ENV`), then `metadata.env` in the config.
 
 If your reporter list differs between CI and local, add the same line to both:
 
@@ -606,7 +607,7 @@ Your Slack step can then read `results.json` for pass / fail counts and top fail
 - **Each run replaces the report.** The old report stays until the new run finishes. Archive the folder if you want to keep an old one.
 - **Videos on macOS.** If the report is in Downloads, Desktop or Documents and you open it as a file, Chrome may not be allowed to read the `assets/` folder (the player shows a clear message). Allow Chrome under System Settings → Privacy & Security → Files and Folders, move the project elsewhere, or set `embedVideos: true`.
 - **Keyboard.** `j` / `k` next and previous test, `f` failed only, `/` search, `1`–`5` switch views, `Esc` close.
-- **Print.** A print stylesheet is included, so "Save as PDF" works.
+- **PDF.** `report.pdf` is written next to the report, and the Export PDF button in the header saves the same print-ready copy from the browser.
 - **Themes.** Light and dark follow the OS. The toggle in the header remembers your choice.
 
 ## Java teams
