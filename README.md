@@ -415,7 +415,7 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `commentMeta` | `true` | Also read meta from the comment above a test or `describe` (`/** @priority P0 @owner naveen */`). `meta()` wins when both are there. `false` reads no comments |
 | `warnMissingMeta` | `true` | After the run, list the tests that have no meta (no `meta()` and no comment) in the console, so nobody on the team forgets |
 
-**Runtime overrides.** `REPORTING_LABS_METADATA_<KEY>` sets a header chip from the environment (`REPORTING_LABS_METADATA_ENV=qa`, `REPORTING_LABS_METADATA_RELEASE=2.3`) and `REPORTING_LABS_TITLE`, `_THEME`, `_PALETTE`, `_ACCENT`, `_LOGO` the matching option; they win over the config. The env chip resolves in this order: `REPORTING_LABS_METADATA_ENV`, the variable `envVar` names, the conventional names (`ENV`, `TEST_ENV`, `APP_ENV`, `TARGET_ENV`, `CI_ENVIRONMENT_NAME`, anything ending in `_ENV`), then `metadata.env` in the config.
+**Runtime overrides.** `REPORTING_LABS_METADATA_<KEY>` sets a header chip from the environment (`REPORTING_LABS_METADATA_ENV=qa`, `REPORTING_LABS_METADATA_RELEASE=2.3`) and `REPORTING_LABS_TITLE`, `_THEME`, `_PALETTE`, `_ACCENT`, `_LOGO`, `_OUTPUT_FOLDER` the matching option; they win over the config. The env chip resolves in this order: `REPORTING_LABS_METADATA_ENV`, the variable `envVar` names, the conventional names (`ENV`, `TEST_ENV`, `APP_ENV`, `TARGET_ENV`, `CI_ENVIRONMENT_NAME`, anything ending in `_ENV`), then `metadata.env` in the config.
 
 If your reporter list differs between CI and local, add the same line to both:
 
@@ -475,10 +475,11 @@ Three shards, run one after another (on a single machine you cannot really run t
 rm -rf all-shards merged
 
 # Run each shard and move its folder aside so the next shard does not overwrite it
+# (use ; not &&: a shard with a failing test exits 1, and && would skip its mv)
 mkdir -p all-shards
-npx playwright test --shard=1/3 && mv reporting-labs all-shards/s1
-npx playwright test --shard=2/3 && mv reporting-labs all-shards/s2
-npx playwright test --shard=3/3 && mv reporting-labs all-shards/s3
+npx playwright test --shard=1/3; mv reporting-labs all-shards/s1
+npx playwright test --shard=2/3; mv reporting-labs all-shards/s2
+npx playwright test --shard=3/3; mv reporting-labs all-shards/s3
 
 # One command combines them
 npx reporting-labs merge all-shards -o merged
@@ -503,17 +504,19 @@ That line proves the reporter ran and the folder exists to move. If you do not s
 mv my-report all-shards/s1
 ```
 
-**One-liner for a real parallel run on your laptop.** Runs three shards at once, then merges when all three finish:
+**A real parallel run on your laptop.** Runs three shards at once, then merges when all three finish. Shards that run at the same time in one folder need their own folders, or they overwrite each other: `REPORTING_LABS_OUTPUT_FOLDER` gives each shard its own report folder, and `--output` gives each its own Playwright `test-results`:
 
 ```bash
 rm -rf all-shards merged && mkdir -p all-shards
-(npx playwright test --shard=1/3 && mv reporting-labs all-shards/s1) &
-(npx playwright test --shard=2/3 && mv reporting-labs all-shards/s2) &
-(npx playwright test --shard=3/3 && mv reporting-labs all-shards/s3) &
+REPORTING_LABS_OUTPUT_FOLDER=all-shards/s1 npx playwright test --shard=1/3 --output=test-results/s1 &
+REPORTING_LABS_OUTPUT_FOLDER=all-shards/s2 npx playwright test --shard=2/3 --output=test-results/s2 &
+REPORTING_LABS_OUTPUT_FOLDER=all-shards/s3 npx playwright test --shard=3/3 --output=test-results/s3 &
 wait
 npx reporting-labs merge all-shards -o merged
 open merged/index.html
 ```
+
+In the merged report the Timeline gives every shard's workers their own rows (`S1·w0`, `S1·w1`, `S2·w0` …), the Workers card says `3 shards × 3 workers`, and the wall clock runs from the first shard's start to the last shard's end.
 
 #### GitHub Actions
 

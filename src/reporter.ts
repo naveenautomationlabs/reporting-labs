@@ -56,7 +56,9 @@ export default class ReportingLabsReporter implements Reporter {
     const scalar = (name: string, current: string | undefined) => { const v = process.env['REPORTING_LABS_' + name]; return v && v.trim() ? v.trim() : current; };
     this.options = { ...options, metadata,
       title: scalar('TITLE', options.title), theme: scalar('THEME', options.theme) as any, palette: scalar('PALETTE', options.palette) as any,
-      accent: scalar('ACCENT', options.accent), logo: scalar('LOGO', options.logo) };
+      accent: scalar('ACCENT', options.accent), logo: scalar('LOGO', options.logo),
+      // one folder per shard when several run at once in the same checkout (Jenkins parallel, `&` in a shell)
+      outputFolder: scalar('OUTPUT_FOLDER', options.outputFolder) };
     this.masker = makeMasker(options.maskKeys ?? [], { knownValues: options.maskValues ?? [], fromEnv: options.maskFromEnv !== false });
   }
 
