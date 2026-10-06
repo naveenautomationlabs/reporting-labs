@@ -121,6 +121,28 @@ One line per test. With this the report can rank failures by priority, group the
 - Forgot one? After every run the console lists the tests that have no `meta()`, with file and line. Turn it off with `warnMissingMeta: false`.
 - `priority`, `severity`, `feature` and `owner` each get a tab in the Breakdown chart and a filter on the Tests page. Want the same for your own key, say `meta({ team: 'web' })`? Add it to `dimensions` in the config: `dimensions: ['priority', 'severity', 'feature', 'owner', 'team']`.
 
+### Or write it as a comment (no code change)
+
+`meta()` stays the main way. If your team prefers not to add calls to the tests, the same meta can sit in a comment right above the test or `test.describe`:
+
+```ts
+/**
+ * Completes a purchase with a saved card.
+ * @priority P0  @owner naveen  @feature payment  @story SHOP-250
+ * @smoke
+ */
+test('completes purchase', async ({ page }) => {
+  // ... your test as usual, no meta() needed
+});
+```
+
+- `@key value` pairs become meta (known keys, plus keys in `dimensions` or `links`). A line of bare `@words` (` * @smoke @regression`) becomes tags, so `@P0` and `@critical` still set priority and severity; a mention inside a sentence ("reported by @naveen") is ignored.
+- A comment above `test.describe` applies to every test inside; the test's own comment wins over it.
+- If a test has both, **`meta()` wins** over the comment.
+- Only a comment touching the test counts: a file header separated by a blank line is ignored, and so are JSDoc tags like `@param`.
+- Works with the WebdriverIO reporter too (above `it()` / `describe()`). Turn it off with `commentMeta: false`.
+- **Snippets:** `npx reporting-labs snippets` adds VS Code snippets, so you type `rlmeta` (or `rltest`, `rlit`, `rldescribe`) and press Tab instead of writing the comment by hand. `init` adds them too.
+
 ### `log()`: a line in the report
 
 ```ts

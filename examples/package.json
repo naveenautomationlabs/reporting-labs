@@ -1,7 +1,10 @@
 {
   "name": "reporting-labs-examples",
   "private": true,
-  "scripts": { "test": "playwright test" },
+  "scripts": {
+    "test": "playwright test",
+    "test:local": "node test-local.js"
+  },
   "devDependencies": {
     "@playwright/test": "^1.50.0",
     "reporting-labs": "latest"

@@ -15,6 +15,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { makeMasker } from '../mask';
 import { explainError } from '../explain';
+import { commentMetaAt, lineOfTitle } from '../comments';
+import { fileURLToPath } from 'url';
 import type { TestData, ResultData, StepData, ErrorData, Status } from '../types';
 
 const META_KEYS = ['priority', 'severity', 'feature', 'owner', 'epic', 'story', 'issue', 'bug', 'component', 'module', 'team', 'sprint', 'testcase', 'tms', 'requirement'];
@@ -48,6 +50,8 @@ export interface ReportingLabsWdioOptions {
   maskKeys?: string[];
   maskValues?: string[];
   maskFromEnv?: boolean;
+  /** Read meta from a comment right above it() / describe(): `/** @owner naveen @priority P0 *\/`. Default: true */
+  commentMeta?: boolean;
   [k: string]: unknown;
 }
 
@@ -116,14 +120,32 @@ export default class ReportingLabsWdioReporter extends EventEmitter {
       retry: test.retries || 0, status: 'passed', duration: 0, startTime: now, workerIndex: numericCid(this.cid),
       errors: [], steps: [], attachments: [], stdout: [], stderr: [], logs: [], data: [], api: [],
     };
-    const file = this.rel(test.file || this.specs[0] || '');
+    const abs = srcPath(test.file || this.specs[0] || '');
+    const file = this.rel(abs);
     const tagSource = [test.title || '', ...this.suiteStack].join(' ');
-    const tags = (tagSource.match(/@[A-Za-z][\w:.=-]*/g) || []);
+    const tags: string[] = tagSource.match(/@[A-Za-z][\w:.=-]*/g) || [];
+    // WDIO gives no line numbers: find it('title') in the spec, for the source link and the comment above it
+    // Each describe is looked up after the one around it, then the test after its own describe.
+    const at: number[] = [];
+    let from = 0;
+    for (const st of this.suiteStack) { const ln = abs ? lineOfTitle(abs, st, 'describe|context|suite', from) : 0; if (ln) { at.push(ln); from = ln; } }
+    const line = abs ? lineOfTitle(abs, test.title || '', 'it|test|specify', from) : 0;
+    const fromComments: Record<string, string> = {};
+    if (abs && this.options.commentMeta !== false) {
+      try {
+        for (const ln of [...at, line].filter(Boolean)) {
+          const c = commentMetaAt(abs, ln);
+          Object.assign(fromComments, c.meta);
+          for (const g of c.tags) if (!tags.includes(g) && !META_KEYS.includes(g.slice(1).toLowerCase())) tags.push(g);
+        }
+      } catch { /* comments are a convenience: never fail the run over them */ }
+    }
     const { meta } = metaFromTags(tags, META_KEYS);
+    for (const [k, v] of Object.entries(fromComments)) if (META_KEYS.includes(k)) meta[k] = this.masker.maskStr(v);
     const t: TestData = {
       id: test.uid || `${file}:${test.title}`,
       key: '', title: this.masker.maskStr(test.title || ''), path: this.suiteStack.map(s => this.masker.maskStr(s)),
-      file, line: 0, project: this.capsName, tags, annotations: [], meta,
+      file, line, project: this.capsName, tags, annotations: [], meta,
       outcome: 'passed', duration: 0, results: [result], retries: test.retries,
     };
     t.key = `${t.project}::${t.file}::${[...t.path, t.title].join(' › ')}`;
@@ -219,6 +241,7 @@ export default class ReportingLabsWdioReporter extends EventEmitter {
   }
 
   private rel(file: string): string {
+    file = srcPath(file);
     if (!file) return file;
     try { return path.relative(process.cwd(), file).split(path.sep).join('/'); } catch { return file; }
   }
@@ -294,3 +317,9 @@ export function metaFromTags(tags: string[], dims: string[]): { meta: Record<str
 }
 
 export { META_KEYS };
+
+/** A spec path WDIO may hand over as a file:// URL. */
+function srcPath(f: string): string {
+  if (!f.startsWith('file:')) return f;
+  try { return fileURLToPath(f); } catch { return f; }
+}

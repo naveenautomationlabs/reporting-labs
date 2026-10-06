@@ -10,6 +10,7 @@ import { renderHtml } from './template';
 import { makeMasker, parseCsv } from './mask';
 import { explainError } from './explain';
 import { writeReportPdf } from './pdf';
+import { commentMetaAt, type CommentMeta } from './comments';
 import type { HistoryEntry, LinkTemplate } from './types';
 
 const DEFAULT_EMBED_LIMIT = 2 * 1024 * 1024;
@@ -105,7 +106,8 @@ export default class ReportingLabsReporter implements Reporter {
       const last = test.results[test.results.length - 1];
       const resultAnn = ((last as any)?.annotations ?? []) as { type: string; description?: string }[];
       const annotations = [...test.annotations, ...resultAnn.filter(a => !test.annotations.some(b => b.type === a.type && b.description === a.description))];
-      const extracted = this.extractMeta(test);
+      const fromComments = this.commentMeta(test);
+      const extracted = this.extractMeta(test, fromComments);
       tests.push({
         id: test.id,
         key: `${project}::${file}::${[...titlePath, test.title].join(' › ')}${test.repeatEachIndex ? ' #' + (test.repeatEachIndex + 1) : ''}`,
@@ -115,7 +117,7 @@ export default class ReportingLabsReporter implements Reporter {
         line: test.location.line,
         column: test.location.column,
         project,
-        tags: test.tags,
+        tags: [...test.tags, ...fromComments.tags.filter(g => !test.tags.includes(g))],
         annotations,
         meta: extracted.meta,
         links: Object.keys(extracted.links).length ? extracted.links : undefined,
@@ -234,7 +236,8 @@ export default class ReportingLabsReporter implements Reporter {
     const w = Math.max(...show.map(t => (t.file + ':' + t.line).length));
     for (const t of show) console.log(`    ${(t.file + ':' + t.line).padEnd(w)}  ${t.title}`);
     if (missing.length > show.length) console.log(`    … and ${missing.length - show.length} more`);
-    console.log("    Add meta({ priority: 'P1', owner: 'name', feature: 'area' }) at the top of the test. Set warnMissingMeta: false to hide this.");
+    console.log("    Add meta({ priority: 'P1', owner: 'name', feature: 'area' }) at the top of the test, or a comment right above it:");
+    console.log("    /** @priority P1 @owner name @feature area */. Set warnMissingMeta: false to hide this.");
   }
 
   /** Open the report in the default browser, like Playwright's HTML reporter. Never in CI. */
@@ -353,18 +356,38 @@ export default class ReportingLabsReporter implements Reporter {
    * An object value (meta({ octaneTestCase: { id, p } })) is folded to its display text and, when the key has a
    * link template, to a ready-made href in `links`; the other fields never show in the report.
    */
-  private extractMeta(test: TestCase): { meta: Record<string, string>; links: Record<string, string> } {
+  /** Meta from comments above the test and its describe blocks (outer first, the test's own comment last). */
+  private commentMeta(test: TestCase): CommentMeta {
+    const out: CommentMeta = { meta: {}, tags: [] };
+    if (this.options.commentMeta === false) return out;
+    try {
+      const dims = this.metaKeys();
+      const at: { file: string; line: number }[] = [];
+      for (let s: Suite | undefined = test.parent; s; s = s.parent) if (s.type === 'describe' && s.location) at.unshift(s.location);
+      at.push(test.location);
+      for (const loc of at) {
+        const c = commentMetaAt(loc.file, loc.line);
+        Object.assign(out.meta, c.meta);
+        // a meta key left without a value (`@priority`) is not a tag
+        for (const g of c.tags) if (!out.tags.includes(g) && !dims.includes(g.slice(1).toLowerCase())) out.tags.push(g);
+      }
+    } catch { /* comments are a convenience: never fail the report over them */ }
+    return out;
+  }
+
+  private extractMeta(test: TestCase, fromComments: CommentMeta = { meta: {}, tags: [] }): { meta: Record<string, string>; links: Record<string, string> } {
     const dims = this.metaKeys();
     const meta: Record<string, string> = {};
     const links: Record<string, string> = {};
-    // Tags first (describe-level, then test-level), annotations last so a test can override its describe's tags.
-    for (const raw of test.tags) {
+    // Tags first (describe-level, then test-level), then comments, then annotations: meta() in the code wins.
+    for (const raw of [...test.tags, ...fromComments.tags]) {
       const tag = raw.replace(/^@/, '');
       const m = tag.match(/^([a-z_-]+)[:=](.+)$/i);
       if (m && dims.includes(m[1].toLowerCase())) { meta[m[1].toLowerCase()] = m[2]; continue; }
       if (/^P[0-4]$/i.test(tag) && dims.includes('priority') && !meta.priority) meta.priority = tag.toUpperCase();
       if (/^(blocker|critical|major|minor|trivial)$/i.test(tag) && dims.includes('severity') && !meta.severity) meta.severity = tag.toLowerCase();
     }
+    for (const [k, v] of Object.entries(fromComments.meta)) if (dims.includes(k)) meta[k] = v;
     for (const a of test.annotations) {
       const k = a.type.toLowerCase();
       if (!dims.includes(k) || !a.description) continue;

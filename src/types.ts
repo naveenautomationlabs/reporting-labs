@@ -24,6 +24,9 @@ export interface ReportingLabsOptions {
    *  `{ file }` to rename, `{ chromePath }` to name the browser (or set CHROME_PATH). The report also has
    *  an "Export PDF" button. */
   pdf?: boolean | { file?: string; chromePath?: string };
+  /** Read meta from a comment right above a test or describe: `/** @owner naveen @priority P0 *\/`. `@key value`
+   *  pairs become meta, a bare `@word` a tag; meta() in the test wins. Default: true */
+  commentMeta?: boolean;
   /** Inline screenshots as base64 (single file, opens anywhere). Default: true */
   embedAttachments?: boolean;
   /** Max size (bytes) of a single attachment to embed. Larger ones are copied as files. Default: 2 MB */
