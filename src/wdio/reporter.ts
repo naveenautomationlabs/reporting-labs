@@ -125,15 +125,20 @@ export default class ReportingLabsWdioReporter extends EventEmitter {
     const tagSource = [test.title || '', ...this.suiteStack].join(' ');
     const tags: string[] = tagSource.match(/@[A-Za-z][\w:.=-]*/g) || [];
     // WDIO gives no line numbers: find it('title') in the spec, for the source link and the comment above it
-    const line = abs ? lineOfTitle(abs, test.title || '', 'it|test|specify|Scenario') : 0;
+    // Each describe is looked up after the one around it, then the test after its own describe.
+    const at: number[] = [];
+    let from = 0;
+    for (const st of this.suiteStack) { const ln = abs ? lineOfTitle(abs, st, 'describe|context|suite', from) : 0; if (ln) { at.push(ln); from = ln; } }
+    const line = abs ? lineOfTitle(abs, test.title || '', 'it|test|specify', from) : 0;
     const fromComments: Record<string, string> = {};
     if (abs && this.options.commentMeta !== false) {
-      const at = this.suiteStack.map(st => lineOfTitle(abs, st, 'describe|context|suite')).filter(Boolean);
-      for (const ln of [...at, line].filter(Boolean)) {
-        const c = commentMetaAt(abs, ln);
-        Object.assign(fromComments, c.meta);
-        for (const g of c.tags) if (!tags.includes(g)) tags.push(g);
-      }
+      try {
+        for (const ln of [...at, line].filter(Boolean)) {
+          const c = commentMetaAt(abs, ln);
+          Object.assign(fromComments, c.meta);
+          for (const g of c.tags) if (!tags.includes(g) && !META_KEYS.includes(g.slice(1).toLowerCase())) tags.push(g);
+        }
+      } catch { /* comments are a convenience: never fail the run over them */ }
     }
     const { meta } = metaFromTags(tags, META_KEYS);
     for (const [k, v] of Object.entries(fromComments)) if (META_KEYS.includes(k)) meta[k] = this.masker.maskStr(v);

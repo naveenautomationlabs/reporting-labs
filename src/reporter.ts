@@ -360,14 +360,18 @@ export default class ReportingLabsReporter implements Reporter {
   private commentMeta(test: TestCase): CommentMeta {
     const out: CommentMeta = { meta: {}, tags: [] };
     if (this.options.commentMeta === false) return out;
-    const at: { file: string; line: number }[] = [];
-    for (let s: Suite | undefined = test.parent; s; s = s.parent) if (s.type === 'describe' && s.location) at.unshift(s.location);
-    at.push(test.location);
-    for (const loc of at) {
-      const c = commentMetaAt(loc.file, loc.line);
-      Object.assign(out.meta, c.meta);
-      for (const g of c.tags) if (!out.tags.includes(g)) out.tags.push(g);
-    }
+    try {
+      const dims = this.metaKeys();
+      const at: { file: string; line: number }[] = [];
+      for (let s: Suite | undefined = test.parent; s; s = s.parent) if (s.type === 'describe' && s.location) at.unshift(s.location);
+      at.push(test.location);
+      for (const loc of at) {
+        const c = commentMetaAt(loc.file, loc.line);
+        Object.assign(out.meta, c.meta);
+        // a meta key left without a value (`@priority`) is not a tag
+        for (const g of c.tags) if (!out.tags.includes(g) && !dims.includes(g.slice(1).toLowerCase())) out.tags.push(g);
+      }
+    } catch { /* comments are a convenience: never fail the report over them */ }
     return out;
   }
 

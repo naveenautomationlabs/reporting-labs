@@ -136,7 +136,7 @@ test('completes purchase', async ({ page }) => {
 });
 ```
 
-- `@key value` pairs become meta (known keys, plus keys in `dimensions` or `links`). A bare `@word` becomes a tag, so `@P0` and `@critical` still set priority and severity.
+- `@key value` pairs become meta (known keys, plus keys in `dimensions` or `links`). A line of bare `@words` (` * @smoke @regression`) becomes tags, so `@P0` and `@critical` still set priority and severity; a mention inside a sentence ("reported by @naveen") is ignored.
 - A comment above `test.describe` applies to every test inside; the test's own comment wins over it.
 - If a test has both, **`meta()` wins** over the comment.
 - Only a comment touching the test counts: a file header separated by a blank line is ignored, and so are JSDoc tags like `@param`.
