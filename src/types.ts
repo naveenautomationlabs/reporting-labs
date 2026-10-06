@@ -19,9 +19,11 @@ export interface ReportingLabsOptions {
   jsonFile?: string;
   /** Also write a print-ready `report.pdf` next to the HTML, rendered by headless Chromium from the
    *  report's own PDF layout (executive summary, charts, failure analysis, the full test-case table and
-   *  screenshots of failures). Needs the Chromium that Playwright already provides. Default: true —
-   *  set `false` to skip, or `{ file }` to rename. The report also has an "Export PDF" button. */
-  pdf?: boolean | { file?: string };
+   *  screenshots of failures). Printed by the Chromium that Playwright provides, else by an installed
+   *  Chrome, Edge or Chromium, whichever browser the tests ran on (Firefox and WebKit runs included). Default: true — set `false` to skip,
+   *  `{ file }` to rename, `{ chromePath }` to name the browser (or set CHROME_PATH). The report also has
+   *  an "Export PDF" button. */
+  pdf?: boolean | { file?: string; chromePath?: string };
   /** Inline screenshots as base64 (single file, opens anywhere). Default: true */
   embedAttachments?: boolean;
   /** Max size (bytes) of a single attachment to embed. Larger ones are copied as files. Default: 2 MB */
