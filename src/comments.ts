@@ -64,7 +64,8 @@ export function parseCommentMeta(text: string): CommentMeta {
     while ((m = re.exec(line))) {
       const key = m[1];
       if (JSDOC.has(key.toLowerCase()) || /^(ts-|eslint|jsx|prettier)/i.test(key)) continue;
-      const value = m[2].trim();
+      // `@owner 'naveen'` / `@feature "Cart and checkout"`: the quotes are not part of the value
+      const value = m[2].trim().replace(/^(['"`])(.*)\1$/, '$2').trim();
       if (value) meta[key.toLowerCase()] = value;
       else if (tagLine && !tags.includes('@' + key)) tags.push('@' + key);
     }
