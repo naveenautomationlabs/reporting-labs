@@ -208,7 +208,31 @@ export default class ReportingLabsReporter implements Reporter {
       this.printMissingMeta(tests);
       console.log('');
     }
+    if (this.options.pdf !== false) await this.writePdf(file);
     this.maybeOpen(file, result);
+  }
+
+  /** Render the report's print layout to a PDF with the Chromium that Playwright already ships. Best-effort:
+   *  a failure here (no browser, sandbox) never fails the run — the report and its Export PDF button remain. */
+  private async writePdf(htmlFile: string) {
+    const name = (typeof this.options.pdf === 'object' && this.options.pdf?.file) || 'report.pdf';
+    const pdfFile = path.join(this.outDir, name);
+    try {
+      const { chromium } = await import('@playwright/test');
+      const { pathToFileURL } = await import('url');
+      const browser = await chromium.launch();
+      try {
+        const page = await browser.newPage();
+        await page.goto(pathToFileURL(htmlFile).href, { waitUntil: 'load' });
+        await page.evaluate(() => (window as unknown as { reportingLabsPreparePrint?: () => Promise<unknown> }).reportingLabsPreparePrint?.());
+        await page.pdf({ path: pdfFile, printBackground: true, preferCSSPageSize: true });
+      } finally {
+        await browser.close();
+      }
+      if (this.options.announce !== false) console.log(`  reporting-labs: PDF written to ${path.relative(process.cwd(), pdfFile)}\n`);
+    } catch (e) {
+      if (this.options.announce !== false) console.log(`  reporting-labs: PDF skipped — ${String((e as Error).message).split('\n')[0]}\n`);
+    }
   }
 
   /** One short list of tests that carry no meta() at all, so the whole team keeps the report useful. */
@@ -526,12 +550,12 @@ export function detectEnvName(env: NodeJS.ProcessEnv, envVar?: string): string |
   return undefined;
 }
 
-function ciRunLabel(env: NodeJS.ProcessEnv): string | undefined {
+export function ciRunLabel(env: NodeJS.ProcessEnv): string | undefined {
   const n = env.GITHUB_RUN_NUMBER || env.BUILD_NUMBER || env.CI_PIPELINE_IID || env.CIRCLE_BUILD_NUM || env.BUILD_BUILDNUMBER || env.BITBUCKET_BUILD_NUMBER;
   return n ? `#${n}` : undefined;
 }
 
-function ciLink(env: NodeJS.ProcessEnv): { name: string; url?: string } | null {
+export function ciLink(env: NodeJS.ProcessEnv): { name: string; url?: string } | null {
   if (env.GITHUB_ACTIONS && env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID)
     return { name: `GitHub Actions #${env.GITHUB_RUN_NUMBER ?? env.GITHUB_RUN_ID}`, url: `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}` };
   if (env.GITLAB_CI && env.CI_JOB_URL) return { name: `GitLab CI #${env.CI_PIPELINE_IID ?? env.CI_JOB_ID}`, url: env.CI_JOB_URL };
@@ -544,7 +568,7 @@ function ciLink(env: NodeJS.ProcessEnv): { name: string; url?: string } | null {
   return null;
 }
 
-function gitInfo(cwd: string, env: NodeJS.ProcessEnv): { sha?: string; author?: string; subject?: string; branch?: string; url?: string } {
+export function gitInfo(cwd: string, env: NodeJS.ProcessEnv): { sha?: string; author?: string; subject?: string; branch?: string; url?: string } {
   const out: { sha?: string; author?: string; subject?: string; branch?: string; url?: string } = {};
   const run = (cmd: string) => { try { return execSync(cmd, { cwd, stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 }).toString().trim(); } catch { return ''; } };
   const line = run('git log -1 --format=%H%x1f%an%x1f%s');

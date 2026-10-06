@@ -617,11 +617,41 @@ The same report, from Java: `dev.reportinglabs` on Maven Central, for TestNG and
 
 The same report, from Python: `pip install reporting-labs` ([PyPI](https://pypi.org/project/reporting-labs/)). A pytest plugin that turns on the moment it is installed, with zero-code support for Playwright and Selenium, and a Robot Framework listener (one row per test, keywords as steps). Source: [reporting-labs-python](https://github.com/naveenautomationlabs/reporting-labs-python). Guides: [reportinglabs.dev/get-started/python](https://reportinglabs.dev/get-started/python).
 
+## WebdriverIO
+
+The same report, from a WebdriverIO suite (Mocha, Jasmine or Cucumber): one row per test, WebDriver commands as steps, a screenshot on failure, failure clusters and the PDF export. WebdriverIO runs a reporter per spec, so reportingLabs writes a part per runner and stitches them together in `onComplete`:
+
+```ts
+// wdio.conf.ts
+import ReportingLabsReporter, { reportingLabsComplete } from 'reporting-labs/wdio';
+
+export const config = {
+  reporters: ['spec', [ReportingLabsReporter, { outputFolder: 'reporting-labs' }]],
+  async onComplete() {
+    await reportingLabsComplete({ outputFolder: 'reporting-labs', title: 'Web E2E' });
+  },
+};
+```
+
+Guide: [reportinglabs.dev/get-started/webdriverio](https://reportinglabs.dev/get-started/webdriverio).
+
 ## Roadmap
 
-- WebdriverIO, Cypress, Jest/Vitest and JUnit XML adapters
+- Cypress, Jest/Vitest and JUnit XML adapters
 - AI summary of failures (bring your own API key)
 - Hosted history dashboard across branches and projects
+
+## Security & privacy
+
+reportingLabs is a library that runs inside your own test run. There is no reportingLabs server, account, API key, telemetry or licence check.
+
+- **Nothing is sent anywhere.** The reporter makes no network requests of its own; its only traffic is the traffic your tests already make. An opened report makes no external requests either: fonts, scripts and the logo are embedded, so it works offline and behind a firewall. The only exceptions are opt-in (`embedFonts: false`, a logo given as an `https://` URL) or need a click (CI, commit and issue links).
+- **Everything stays on your machine:** the report folder (`reporting-labs/` by default) holds `index.html`, `report.json`, `report.pdf` and `assets/`, plus the run history `reporting-labs.history.json` next to your project. Nothing is written anywhere else. Whoever can read your test artifacts can read the report; deleting them deletes the data.
+- **Secrets are masked before anything is written:** passwords, tokens, cookies, auth headers, API keys, JWTs and card numbers in logs, API bodies and headers, test data, errors and step titles. With Playwright, a value passed to `fill()` shows in the step title unless it is a known secret, so read test passwords from environment variables (masked by default) or list them in `maskValues`. The WebdriverIO reporter masks values typed into password fields.
+- **Screenshots, videos and traces are not masked.** They are images and recordings of the application, so run tests against test data, or turn them off for suites that show real personal data.
+- **No runtime dependencies;** `@playwright/test` is an optional peer, the one your project already has. No install or post-install scripts. MIT licensed.
+
+Full details for security reviewers and client projects, including what is read, what is written and what to tell a client: [reportinglabs.dev/security-privacy](https://reportinglabs.dev/security-privacy). To report a vulnerability, open an issue saying you have a security report (no details) and a private channel will be arranged.
 
 ## License
 
