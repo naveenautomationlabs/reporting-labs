@@ -184,7 +184,34 @@ await testData(rowsFromExcelOrJson, 'Coupons');                           // arr
 await testData(fs.readFileSync('data/users.csv', 'utf8'), 'users.csv');   // CSV text → table
 ```
 
-**Secrets are masked automatically**, wherever they show up: `console.log` output, `log()` lines, `testData()` blocks, API headers and bodies, step titles and assertion messages. Covered forms: `password=x`, `Password: x`, `{ password: 'x' }`, `"password":"x"`, `X-Api-Key: x`, `access_token=x`, "password is x", "with password S3cret@1", `Bearer ...` / `Basic ...`, JWTs, and well-known token formats (GitHub, AWS, Slack, Stripe, Google, GitLab, npm, SendGrid). A failing `expect(token)` shows `Received: "****"`. Also `user:pass@host` in URLs, `curl -u user:pass`, `credentials user:pass`, `password for user X is Y`, `Typed x into password field`, and Luhn-valid card numbers. The masker remembers every value it has masked (and the values of `PASSWORD` / `API_TOKEN` / `*_SECRET` environment variables), so a secret that later appears with no key at all (`Logging in as admin / s3cret`) is blanked too. Add your own keys with `maskKeys: ['otp', 'pan']` and values it cannot know about with `maskValues: [process.env.PASSWORD]`; `maskFromEnv: false` turns the environment learning off.
+### Secrets are masked automatically
+
+Passwords, tokens and card numbers never reach the report. They are replaced with `****` **before** anything is written, with no setup.
+
+**Where:** `console.log` output, `log()` lines, `testData()` blocks, API headers and bodies, step titles and failed assertions (a failing `expect(token)` shows `Received: "****"`).
+
+**What it catches:**
+
+| Kind | Examples |
+|---|---|
+| Key and value | `password=x`, `Password: x`, `{ password: 'x' }`, `"password":"x"`, `access_token=x`, `X-Api-Key: x` |
+| Plain sentences | "password is x", "with password S3cret@1", "password for user X is Y", "Typed x into password field" |
+| Login in a URL or command | `user:pass@host`, `curl -u user:pass`, `credentials user:pass` |
+| Auth headers | `Bearer …`, `Basic …` |
+| Tokens | JWTs, and GitHub, AWS, Slack, Stripe, Google, GitLab, npm and SendGrid keys |
+| Card numbers | any valid card number (Luhn check) |
+
+**It remembers.** Once a value has been masked, it is masked everywhere it shows up later, even with no key around it: `Logging in as admin / s3cret` becomes `Logging in as admin / ****`. It also learns the values of environment variables like `PASSWORD`, `API_TOKEN` or `*_SECRET`.
+
+**Add your own:**
+
+```ts
+reporter: [['reporting-labs', {
+  maskKeys: ['otp', 'pan'],               // extra key names to mask
+  maskValues: [process.env.PASSWORD],     // exact values to mask wherever they appear
+  // maskFromEnv: false,                  // stop learning values from environment variables
+}]]
+```
 
 ## API calls: recorded on their own
 
