@@ -1,12 +1,18 @@
 <p align="center"><img src="https://raw.githubusercontent.com/naveenautomationlabs/reporting-labs/main/assets/logo-wordmark.svg" alt="reportingLabs" width="320"></p>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/reporting-labs"><img src="https://img.shields.io/npm/v/reporting-labs.svg?label=npm" alt="npm"></a>
+  <a href="https://reportinglabs.dev"><img src="https://img.shields.io/badge/docs-reportinglabs.dev-1A56DB.svg" alt="Docs"></a>
+  <a href="https://reportinglabs.dev/support"><img src="https://img.shields.io/badge/%E2%99%A5%20Support-reportingLabs-E5405E?style=flat" alt="Support reportingLabs"></a>
+</p>
+
 # reportingLabs
 
 **A beautiful test report in one HTML file. It tells you what broke, who owns it, and whether it is new.**
 
 reportingLabs turns a test run into a single HTML file. No server. No upload. No login. Open the file in a browser, attach it to a CI job, or send it on Slack or email. It just works.
 
-Today it ships with a **Playwright** reporter. WebdriverIO, Cypress and Jest/Vitest are on the roadmap.
+Today it ships with a **Playwright** reporter and a **WebdriverIO** reporter. Cypress and Jest/Vitest are on the roadmap. The same report is also available for [Java](https://github.com/naveenautomationlabs/reporting-labs-java) and [Python](https://github.com/naveenautomationlabs/reporting-labs-python).
 
 <p align="center"><img src="https://raw.githubusercontent.com/naveenautomationlabs/reporting-labs/main/docs/quickstart.gif" alt="reportingLabs in three steps: install, tag your tests, open one HTML file" width="900"></p>
 
