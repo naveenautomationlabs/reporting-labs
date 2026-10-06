@@ -27,6 +27,8 @@ Run the suite two or three times to see the history features (new vs known failu
 
 ### Trying a change that is not on npm yet
 
+One command does all of it: `npm run test:local` (builds, packs and installs this clone, then runs the tests). The steps it runs:
+
 `npm install` above pulls the published `reporting-labs` from npm. To run the examples against the code in this clone, build and pack it first, then install the tarball into `examples/` without touching its package.json:
 
 ```bash
