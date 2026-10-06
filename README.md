@@ -14,6 +14,8 @@ reportingLabs turns a test run into a single HTML file. No server. No upload. No
 
 Today it ships with a **Playwright** reporter and a **WebdriverIO** reporter. Cypress and Jest/Vitest are on the roadmap. The same report is also available for [Java](https://github.com/naveenautomationlabs/reporting-labs-java) and [Python](https://github.com/naveenautomationlabs/reporting-labs-python).
 
+> ♥ **Free and open source, no paid tier.** If reportingLabs saves your team time, [support its development](https://reportinglabs.dev/support) (Razorpay for India, Stripe for everywhere else). A ⭐ on GitHub helps too.
+
 <p align="center"><img src="https://raw.githubusercontent.com/naveenautomationlabs/reporting-labs/main/docs/quickstart.gif" alt="reportingLabs in three steps: install, tag your tests, open one HTML file" width="900"></p>
 
 <p align="center"><em>Install, tag your tests, open one HTML file.</em></p>
@@ -659,10 +661,6 @@ reportingLabs is a library that runs inside your own test run. There is no repor
 - **No runtime dependencies;** `@playwright/test` is an optional peer, the one your project already has. No install or post-install scripts. MIT licensed.
 
 Full details for security reviewers and client projects, including what is read, what is written and what to tell a client: [reportinglabs.dev/security-privacy](https://reportinglabs.dev/security-privacy). To report a vulnerability, open an issue saying you have a security report (no details) and a private channel will be arranged.
-
-## Support
-
-reportingLabs is free and MIT-licensed, with no paid tier. If it saves your team time, you can support its development at [reportinglabs.dev/support](https://reportinglabs.dev/support) (Razorpay for India, Stripe for everywhere else). A star on GitHub helps too.
 
 ## License
 
