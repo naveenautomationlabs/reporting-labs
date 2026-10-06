@@ -1,12 +1,20 @@
 <p align="center"><img src="https://raw.githubusercontent.com/naveenautomationlabs/reporting-labs/main/assets/logo-wordmark.svg" alt="reportingLabs" width="320"></p>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/reporting-labs"><img src="https://img.shields.io/npm/v/reporting-labs.svg?label=npm" alt="npm"></a>
+  <a href="https://reportinglabs.dev"><img src="https://img.shields.io/badge/docs-reportinglabs.dev-1A56DB.svg" alt="Docs"></a>
+  <a href="https://reportinglabs.dev/support"><img src="https://img.shields.io/badge/%E2%99%A5%20Support-reportingLabs-E5405E?style=flat" alt="Support reportingLabs"></a>
+</p>
+
 # reportingLabs
 
 **A beautiful test report in one HTML file. It tells you what broke, who owns it, and whether it is new.**
 
 reportingLabs turns a test run into a single HTML file. No server. No upload. No login. Open the file in a browser, attach it to a CI job, or send it on Slack or email. It just works.
 
-Today it ships with a **Playwright** reporter. WebdriverIO, Cypress and Jest/Vitest are on the roadmap.
+Today it ships with a **Playwright** reporter and a **WebdriverIO** reporter. Cypress and Jest/Vitest are on the roadmap. The same report is also available for [Java](https://github.com/naveenautomationlabs/reporting-labs-java) and [Python](https://github.com/naveenautomationlabs/reporting-labs-python).
+
+> ♥ **Free and open source, no paid tier.** If reportingLabs saves your team time, [support its development](https://reportinglabs.dev/support) (Razorpay for India, Stripe for everywhere else). A ⭐ on GitHub helps too.
 
 <p align="center"><img src="https://raw.githubusercontent.com/naveenautomationlabs/reporting-labs/main/docs/quickstart.gif" alt="reportingLabs in three steps: install, tag your tests, open one HTML file" width="900"></p>
 
@@ -653,10 +661,6 @@ reportingLabs is a library that runs inside your own test run. There is no repor
 - **No runtime dependencies;** `@playwright/test` is an optional peer, the one your project already has. No install or post-install scripts. MIT licensed.
 
 Full details for security reviewers and client projects, including what is read, what is written and what to tell a client: [reportinglabs.dev/security-privacy](https://reportinglabs.dev/security-privacy). To report a vulnerability, open an issue saying you have a security report (no details) and a private channel will be arranged.
-
-## Support
-
-reportingLabs is free and MIT-licensed, with no paid tier. If it saves your team time, you can support its development at [reportinglabs.dev/support](https://reportinglabs.dev/support) (Razorpay for India, Stripe for everywhere else). A star on GitHub helps too.
 
 ## License
 
