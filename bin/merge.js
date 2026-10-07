@@ -95,25 +95,43 @@ function merge(inputs, opts) {
 
   const shards = dirs.map((d, i) => {
     const data = JSON.parse(fs.readFileSync(path.join(d, 'report.json'), 'utf8'));
-    return { dir: d, label: shardLabel(d, i, data), data };
+    return { dir: d, label: shardLabel(d, i, data), data, order: data.shard && data.shard.current ? data.shard.current : 1e6 + i };
+  }).sort((a, b) => a.order - b.order);
+
+  // Every shard numbers its workers from 0. Give each shard its own lanes (S1·w0, S1·w1, S2·w0, ...) so the
+  // Timeline and Workers cards do not stack four shards onto the same rows.
+  let offset = 0;
+  const workerLabels = [];
+  const shardInfo = shards.map((s, i) => {
+    const n = s.data.shard && s.data.shard.current ? s.data.shard.current : i + 1;
+    const w = Math.max(s.data.workers || 0, 1 + Math.max(-1, ...(s.data.tests || []).flatMap(t => (t.results || []).map(r => r.workerIndex ?? -1))));
+    s.offset = offset; offset += w;
+    for (let k = 0; k < w; k++) workerLabels.push(`S${n}·w${k}`);
+    return { shard: n, workers: w, startTime: s.data.startTime || 0, duration: s.data.duration || 0 };
   });
+  const start = Math.min(...shards.map(s => s.data.startTime || 0));
+  const end = Math.max(...shards.map(s => (s.data.startTime || 0) + (s.data.duration || 0)));
 
   const first = shards[0].data;
   // Compose combined data. Start from the first shard's options/env, then merge in test rows.
   const combined = {
     ...first,
     title: opts.title || first.title,
-    startTime: Math.min(...shards.map(s => s.data.startTime || 0)),
-    duration: Math.max(...shards.map(s => s.data.duration || 0)),
+    startTime: start,
+    duration: end - start,   // wall clock from the first shard's start to the last shard's end
     generatedAt: Date.now(),
     stats: { passed: 0, failed: 0, skipped: 0, flaky: 0, timedOut: 0, interrupted: 0, total: 0 },
     tests: [],
     globalErrors: [],
     globalOutput: [],
     projects: [],
-    workers: shards.reduce((n, s) => n + (s.data.workers || 0), 0),
+    workers: offset,
+    // one folder: keep the plain w0, w1 ... lanes of a normal run
+    workerLabels: shards.length > 1 ? workerLabels : undefined,
+    shardInfo: shards.length > 1 ? shardInfo : undefined,
     shard: undefined,   // no longer sharded
-    env: [...(first.env || [])],
+    // the first shard's own "Shard 1 of 4" / "Workers 4" rows would be wrong for the merged run
+    env: (first.env || []).filter(e => e.k !== 'Shard' && e.k !== 'Workers'),
     history: first.history || [],   // all shards share the same history file
   };
 
@@ -128,6 +146,7 @@ function merge(inputs, opts) {
         ...t,
         results: (t.results || []).map(r => ({
           ...r,
+          workerIndex: typeof r.workerIndex === 'number' && r.workerIndex >= 0 ? r.workerIndex + s.offset : r.workerIndex,
           attachments: (r.attachments || []).map(a => rewriteAttachmentPath(a, s.label)),
         })),
       };
@@ -137,6 +156,8 @@ function merge(inputs, opts) {
     for (const o of (s.data.globalOutput || [])) combined.globalOutput.push(o);
   }
   combined.projects = [...projSet].sort();
+  const per = [...new Set(shardInfo.map(x => x.workers))];
+  combined.env.push({ k: 'Workers', v: shards.length === 1 ? String(offset) : per.length === 1 ? `${per[0]} per shard · ${offset} in total` : `${offset} in total` });
   combined.env.push({ k: 'Shards', v: shards.map(s => s.label).join(', ') });
   if (combined.runStatus === undefined || combined.runStatus === 'passed') {
     const anyFail = shards.some(s => s.data.runStatus && s.data.runStatus !== 'passed');

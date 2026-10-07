@@ -264,6 +264,9 @@ export interface ReportData {
   /** Console output that was not attributed to a test. */
   globalOutput: { stream: 'out' | 'err'; text: string }[];
   shard?: { current: number; total: number };
+  /** Set by `reporting-labs merge`: one lane name per worker (S1·w0, S1·w1, S2·w0 ...) and each shard's size and timing. */
+  workerLabels?: string[];
+  shardInfo?: Array<{ shard: number; workers: number; startTime: number; duration: number }>;
   options: {
     logo?: string;
     accent?: string;
