@@ -33,6 +33,10 @@
     "./wdio": {
       "types": "./dist/wdio/index.d.ts",
       "default": "./dist/wdio/index.js"
+    },
+    "./cypress": {
+      "types": "./dist/cypress/index.d.ts",
+      "default": "./dist/cypress/index.js"
     }
   },
   "bin": {

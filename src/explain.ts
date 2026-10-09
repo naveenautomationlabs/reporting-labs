@@ -79,6 +79,10 @@ export function explainError(raw: string): ErrorExplain | undefined {
   // ── The browser process died (memory, too many workers): infrastructure, not the app or the test ──
   if (/Target crashed|Page crashed|page has crashed|Renderer process crashed|tab crashed|session deleted because of page crash|chrome not reachable|Browsing context has been discarded/i.test(msg)) return out('crashed', 'The browser crashed while the test was running.', 'Not a bug in the app or the test: the browser process died, usually from memory pressure or too many parallel workers. Re-run it; if it keeps happening, lower workers or give the machine more memory.', { action });
 
+  // ── Cypress (and chai-style assertions): only messages in Cypress's own wording reach these rules ──
+  const cy = explainCypress(msg, out);
+  if (cy) return cy;
+
   // ── Strict mode ──────────────────────────────────────────────────────────
   m = msg.match(/strict mode violation: (.+?) resolved to (\d+) elements/s);
   if (m) return out('ambiguous', `${short(m[1].trim())} matched ${m[2]} elements, Playwright needs exactly one.`, 'Make the selector more specific, or pick one with .first(), .nth(i) or a filter such as { hasText }.', { locator: m[1].trim() });
@@ -161,4 +165,80 @@ export function explainError(raw: string): ErrorExplain | undefined {
   }
   if (/^Error: (.+)/.test(first) && !/^Error: (locator|page|frame|browser|expect|apiRequestContext)/.test(first)) return out('thrown', short(first.replace(/^Error: /, '')), 'The test (or a helper) threw this error on purpose or via a failed check. The stack trace below points at the line.');
   return out('thrown', short(first), 'See the full message and stack trace below.');
+}
+
+type Out = (kind: ErrorKind, summary: string, hint?: string, extra?: Partial<ErrorExplain>) => ErrorExplain;
+
+/** Cypress messages: `Timed out retrying after 4000ms: …`, `cy.click()` failed because …, cy.request / cy.visit /
+ *  cy.wait failures, uncaught application errors, and chai assertions (`expected 'a' to equal 'b'`). */
+function explainCypress(msg: string, out: Out): ErrorExplain | undefined {
+  const body = msg.replace(/^(?:AssertionError|CypressError|Error):\s*/, '');
+  const retry = body.match(/^Timed out retrying after (\d+)ms:\s*/);
+  const timeoutMs = retry ? Number(retry[1]) : undefined;
+  const text = retry ? body.slice(retry[0].length) : body;
+  const within = timeoutMs ? ' within ' + secs(timeoutMs) : '';
+  const cmd = pick(text, /`?(cy\.\w+)\(\)`?\s+(?:failed|timed out|could not)/);
+  const isCy = !!retry || !!cmd || /CypressError|originated from your application code|for your remote page to load|^`?cy\.\w+\(\)/.test(msg);
+  const chai = text.match(/^expected ([\s\S]+?) (?:not to|to(?: (not))?) (deeply equal|have length|have text|have value|equal|eql|be|have|include|contain|match|exist)\b\s*([\s\S]*)$/);
+  if (!isCy && !chai) return undefined;
+
+  // ── the app threw, not the test ──
+  if (/originated from your application code, not from Cypress/.test(msg)) {
+    const appErr = pick(msg, /^\s*>\s*(.+)$/m);
+    return out('script', `The application threw an uncaught error${appErr ? ': ' + short(appErr, 100) : ''}. Cypress fails the test when the app throws.`, 'Fix the error in the app, or if it is expected, ignore it with Cypress.on(\'uncaught:exception\', () => false) for that test.');
+  }
+  // ── element lookups ──
+  let m = text.match(/Expected to find element: `?([^`\n]+?)`?, but never found it/);
+  if (m) return out('not-found', `${m[1]} was not on the page${within}.`, 'Check the selector, and whether the element is inside an iframe, behind a login, or only shown after a click.', { locator: m[1], timeoutMs });
+  m = text.match(/Expected to find content: '([^']*)'(?: within the (?:element|selector): ([^\n]+?))?,? but never did/);
+  if (m) return out('not-found', `The text "${short(m[1], 60)}" did not appear${m[2] ? ' inside ' + short(m[2].replace(/`/g, ''), 60) : ''}${within}.`, 'Check the expected text (case, spaces) and whether the page finished loading.', { locator: m[2]?.replace(/`/g, ''), timeoutMs });
+  m = text.match(/Expected not to find element: `?([^`\n]+?)`?, but it was continuously found/);
+  if (m) return out('assertion', `${m[1]} was still on the page${within}, but should have gone.`, 'Something kept it on screen. Check the step that should remove or hide it.', { locator: m[1], timeoutMs });
+  m = text.match(/Not enough elements found\. Found '(\d+)', expected '(\d+)'|Too many elements found\. Found '(\d+)', expected '(\d+)'/);
+  if (m) return out('assertion', `The selector matched ${m[1] ?? m[3]} elements, expected ${m[2] ?? m[4]}${within}.`, 'The list may not have finished loading, or the selector also matches other elements.', { timeoutMs });
+  // ── actions: cy.click() failed because this element … ──
+  if (cmd && /failed because/.test(text)) {
+    const el = pick(text, /this element:?\s*\n*\s*`?(<[^`\n]+>)`?/) ?? pick(text, /`(<[^`\n]+>)`/);
+    const base = { action: cmd, locator: el, timeoutMs };
+    if (/is being covered by another element/.test(text)) { const by = pick(text, /covered by another element:?\s*\n*\s*`?(<[^`\n]+>)`?/); return out('blocked', `${cmd}() could not reach ${el ?? 'the element'}: ${by ? short(by, 60) : 'another element'} is on top of it.`, 'A dialog, banner, overlay or spinner is in the way. Close or wait for it first.', base); }
+    if (/is not visible/.test(text)) return out('not-visible', `${cmd}() could not use ${el ?? 'the element'} because it is not visible.`, 'It may be hidden by CSS, off screen in a closed menu, or still animating in.', base);
+    if (/is disabled/.test(text)) return out('disabled', `${cmd}() could not use ${el ?? 'the element'} because it is disabled.`, 'The form may need another field filled first, or the app is still busy.', base);
+    if (/page updated while this command was executing|detached from the DOM/.test(text)) return out('detached', `The element was re-rendered while ${cmd}() was using it.`, 'The UI replaced the element. Query it again after the change, or wait for the update to finish.', base);
+    if (/can only be called on|requires a DOM element|requires a valid subject|can only be called on a single element/.test(text)) return out('wrong-element', `${cmd}() was used on something it does not work on.`, 'Check the command before it: the subject may be several elements, or not an element at all.', base);
+  }
+  // ── cy.request / cy.visit / cy.wait ──
+  if (cmd === 'cy.request') {
+    const url = pick(text, /failed on:\s*\n+\s*(https?:\/\/\S+)/);
+    const st = text.match(/>\s*(\d{3}):\s*([^\n]*)/);
+    if (/timed out waiting/.test(text)) return out('api', `The API request${url ? ' to ' + url : ''} did not answer in time.`, 'The API may be slow or hanging. Check its logs, or raise the timeout of cy.request.', { action: cmd, url });
+    if (st) return out('api', `The API answered ${st[1]}${st[2] ? ' ' + st[2].trim() : ''}${url ? ' for ' + url : ''}.`, Number(st[1]) >= 500 ? 'A server error: check the API logs for this request.' : 'Check the request (URL, auth, body). If this status is expected, pass failOnStatusCode: false.', { action: cmd, url });
+    if (/failed without a response|ECONNREFUSED|ENOTFOUND/.test(text)) return out('network', `The API${url ? ' at ' + url : ''} could not be reached.`, 'Check the URL and that the API is up. In CI, make sure it starts before the tests.', { action: cmd, url });
+  }
+  if (cmd === 'cy.visit' || /for your remote page to load/.test(text)) {
+    const url = pick(text, /failed trying to load:\s*\n+\s*(https?:\/\/\S+)/);
+    const st = text.match(/>\s*(\d{3}):\s*([^\n]*)/);
+    if (/for your remote page to load/.test(text)) return out('navigation', `The page did not finish loading${pick(text, /waiting `?(\d+)ms`?/) ? ' within ' + secs(Number(pick(text, /waiting `?(\d+)ms`?/))) : ''}.`, 'The app may be slow or stuck on a request. Raise pageLoadTimeout only if the page is really that slow.', { action: 'cy.visit', url });
+    if (/failed without a response|ECONNREFUSED|ENOTFOUND|ECONNRESET/.test(text)) return out('network', `The browser could not reach ${url ?? 'the site'}.`, 'Check baseUrl and that the app is running. In CI, make sure the web server starts before the tests.', { action: 'cy.visit', url });
+    if (st) return out('navigation', `${url ?? 'The page'} answered ${st[1]}${st[2] ? ' ' + st[2].trim() : ''}.`, 'Check the URL. If this status is expected, pass failOnStatusCode: false to cy.visit.', { action: 'cy.visit', url });
+  }
+  m = text.match(/`?cy\.wait\(\)`? timed out waiting `?(\d+)ms`? for the \w+ (request|response) to the route: `?([^`\s.]+)`?/);
+  if (m) return out('api', `No ${m[2]} for the route "${m[3]}" came within ${secs(Number(m[1]))}.`, m[2] === 'request' ? 'The app never made that call: check the cy.intercept() pattern (method, URL) and that the action triggering it ran.' : 'The call was made but did not answer in time: check the API.', { action: 'cy.wait', timeoutMs: Number(m[1]) });
+  if (cmd === 'cy.task' && /failed with the following error/.test(text)) return out('script', `The task ${pick(text, /cy\.task\('([^']+)'/) ?? ''} threw in the Cypress Node process.`.replace('task  ', 'task '), 'See the full message below; the task code lives in setupNodeEvents.', { action: 'cy.task' });
+
+  // ── assertions (chai / should) ──
+  if (chai) {
+    const [, actual, notAfter, verb, restRaw] = chai;
+    const not = notAfter || (/^expected [\s\S]+? not to /.test(text) ? 'not ' : undefined);
+    const rest = restRaw.split('\n')[0].replace(/,\s*but[\s\S]*$/, '').replace(/ in the DOM$/, '').trim();
+    const butWas = pick(text, /but the (?:text|value) was '([^']*)'/);
+    const el = /^'?<[^>]+>'?$/.test(actual.trim()) ? actual.replace(/'/g, '') : undefined;
+    const base = { locator: el, timeoutMs };
+    if (verb === 'exist') return out(not ? 'assertion' : 'not-found', not ? `${el ?? short(actual, 60)} still existed${within}.` : `${el ?? short(actual, 60)} did not exist${within}.`, not ? 'Something kept it on the page. Check the step that should remove it.' : 'Check the selector and whether the element appears only after another step.', base);
+    if (verb === 'be' && /^'?visible'?$/.test(rest) && !not) return out('not-visible', `${el ?? 'The element'} was expected to be visible${within} but was not.`, 'It may still be loading, be hidden by CSS, or sit inside a closed menu or dialog.', base);
+    if ((verb === 'have text' || verb === 'have value') && butWas !== undefined) return out('assertion', `${el ?? 'The element'} had the wrong ${verb === 'have text' ? 'text' : 'value'}: expected ${short(rest, 60)}, got '${short(butWas, 60)}'.`, 'Compare expected and received below. A copy change, a data change or a timing issue are the usual causes.', base);
+    if (/equal|eql/.test(verb) && !not) return out('assertion', `Expected ${short(rest, 70)}, got ${short(actual, 70)}.`, 'Compare the two values in the full message below.', base);
+    if (/include|contain|match/.test(verb)) return out('assertion', `${short(actual, 70)} did ${not ? '' : 'not '}${verb === 'match' ? 'match' : 'contain'} ${short(rest, 70)}${within}.`, /^'https?:/.test(actual) ? 'The page may not have navigated yet, or went somewhere else (a redirect, a login screen, an error page).' : 'Compare the two values in the full message below.', base);
+    return out('assertion', `An assertion did not pass: expected ${short(actual, 60)} to ${not ?? ''}${verb} ${short(rest, 60)}${within}.`.replace(/\s+\./, '.'), 'See the full message below.', base);
+  }
+  return undefined;
 }
