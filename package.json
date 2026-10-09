@@ -1,6 +1,6 @@
 {
   "name": "reporting-labs",
-  "version": "0.6.16",
+  "version": "0.6.17",
   "description": "reportingLabs – beautiful, customizable single-file HTML test reports. One line of config. Playwright adapter included, more runners on the way.",
   "keywords": [
     "test-report",
@@ -10,6 +10,8 @@
     "qa",
     "test-automation",
     "playwright",
+    "cypress",
+    "webdriverio",
     "dashboard"
   ],
   "author": "Naveen Khunteta <naveen@naveenautomationlabs.com>",
@@ -33,6 +35,14 @@
     "./wdio": {
       "types": "./dist/wdio/index.d.ts",
       "default": "./dist/wdio/index.js"
+    },
+    "./cypress": {
+      "types": "./dist/cypress/index.d.ts",
+      "default": "./dist/cypress/index.js"
+    },
+    "./cypress/support": {
+      "types": "./dist/cypress/support.d.ts",
+      "default": "./dist/cypress/support.js"
     }
   },
   "bin": {

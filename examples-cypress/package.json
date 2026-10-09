@@ -1,0 +1,12 @@
+{
+  "name": "reporting-labs-cypress-example",
+  "private": true,
+  "description": "reportingLabs with Cypress: a tiny local app, a few specs, one command",
+  "scripts": {
+    "test": "cypress run"
+  },
+  "devDependencies": {
+    "cypress": "^15.0.0",
+    "reporting-labs": "^0.6.17"
+  }
+}
