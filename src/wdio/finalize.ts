@@ -43,6 +43,7 @@ export interface ReportingLabsCompleteOptions {
   maskFromEnv?: boolean;
   embedFonts?: boolean;
   editorLinks?: boolean;
+  expandFailedSteps?: boolean;
 }
 
 export async function reportingLabsComplete(options: ReportingLabsCompleteOptions = {}): Promise<string | undefined> {
@@ -131,6 +132,7 @@ export async function reportingLabsComplete(options: ReportingLabsCompleteOption
       links: Object.fromEntries(Object.entries(options.links ?? {}).map(([k, v]) => [k.toLowerCase(), typeof v === 'string' ? v : (v as { url: string }).url])),
       customCss: options.customCss ?? '',
       editorLinks: options.editorLinks ?? !process.env.CI,
+      expandFailedSteps: options.expandFailedSteps ?? true,
     },
   } as ReportData;
 

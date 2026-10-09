@@ -61,6 +61,7 @@ const config: ReportingLabsOptions = {
   // },
   // maskKeys: ['otp', 'pan'],                        // extra keys to mask as **** (passwords, tokens, cookies already are)
   // editorLinks: true,                               // "Open in VS Code" on every test; default: on locally, off in CI
+  // expandFailedSteps: true,                         // open the steps leading to a failure; false = all steps start collapsed
   // bdd: false,                                      // style Given/When/Then steps as Gherkin; default: auto-detect
 
   // ── Run history and trend ────────────────────────────────────────────────────

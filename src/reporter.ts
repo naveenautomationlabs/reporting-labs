@@ -198,6 +198,7 @@ export default class ReportingLabsReporter implements Reporter {
         links: this.linkUrls(),
         customCss: this.options.customCss ?? '',
         editorLinks: this.options.editorLinks ?? !process.env.CI,
+        expandFailedSteps: this.options.expandFailedSteps ?? true,
       },
     };
 
