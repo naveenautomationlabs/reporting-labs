@@ -31,7 +31,7 @@ import { explainError } from '../explain';
 import { commentMetaAt, lineOfTitle } from '../comments';
 import { metaFromTags, META_KEYS } from '../wdio/reporter';
 import { detectEnvName } from '../reporter';
-import type { TestData, ResultData, ErrorData, AttachmentData, Status } from '../types';
+import type { TestData, ResultData, ErrorData, AttachmentData, Status, StepData, ApiCall } from '../types';
 
 export interface ReportingLabsCypressOptions extends WriteReportOptions {
   /** Read meta from a comment right above it() / describe(): `/** @owner naveen @priority P0 *\/`. Default: true */
@@ -67,9 +67,18 @@ interface CyAfterRun {
   browserName?: string; browserVersion?: string; cypressVersion?: string;
   startedTestsAt?: string; endedTestsAt?: string; totalFailed?: number;
 }
-type On = (event: string, handler: (...args: any[]) => unknown) => void;
+type On = (event: string, handler: any) => void;
 
 const DEFAULT_EMBED_LIMIT = 2 * 1024 * 1024;
+const ATTEMPT_TASK = 'reportingLabs:attempt';
+const ENABLED_FLAG = 'reportingLabsEnabled';
+
+/** One attempt as the support file sends it (see support.ts). */
+export interface AttemptPayload {
+  spec?: string; titlePath?: string[]; retry?: number; state?: string; start?: number; duration?: number;
+  err?: { message?: string; stack?: string; codeFrame?: { line?: number; column?: number; relativeFile?: string } };
+  steps?: StepData[]; api?: ApiCall[]; meta?: Record<string, unknown>;
+}
 
 export interface ReportingLabsCypressHandlers {
   beforeRun: (details: CyBeforeRun) => void;
@@ -79,6 +88,15 @@ export interface ReportingLabsCypressHandlers {
 
 export function reportingLabs(on: On, config: Record<string, unknown> = {}, options: ReportingLabsCypressOptions = {}): ReportingLabsCypressHandlers {
   const opts = withRuntimeOverrides(options);
+  // tells the support file the task is registered; without it, cy.task would fail every test
+  // Cypress 16 reads it with Cypress.expose() (config.expose); 12 to 15 with Cypress.env() (config.env)
+  try {
+    if (config && typeof config === 'object') {
+      const major = parseInt(String(config.version ?? ''), 10);
+      if ('expose' in config || major >= 16) config.expose = { ...((config.expose as object) ?? {}), [ENABLED_FLAG]: true };
+      else config.env = { ...((config.env as object) ?? {}), [ENABLED_FLAG]: true };
+    }
+  } catch { /* fine */ }
   const collector = new CypressCollector(opts, config);
   const handlers: ReportingLabsCypressHandlers = {
     beforeRun: d => safe(() => collector.beforeRun(d)),
@@ -86,6 +104,8 @@ export function reportingLabs(on: On, config: Record<string, unknown> = {}, opti
     afterRun: async results => { try { return await collector.afterRun(results); } catch (e) { console.warn('reporting-labs: report not written:', (e as Error)?.message ?? e); return undefined; } },
   };
   if (typeof on === 'function') {
+    // what the support file collects in the browser; Cypress merges this with the project's own tasks
+    on('task', { [ATTEMPT_TASK]: (payload: AttemptPayload) => { safe(() => collector.addAttempt(payload)); return null; } });
     on('before:run', handlers.beforeRun);
     on('after:spec', handlers.afterSpec);
     on('after:run', handlers.afterRun);
@@ -123,12 +143,21 @@ export class CypressCollector {
   private assetCounter = 0;
   private assetsReady = false;
   private base: string;
+  private attempts = new Map<string, AttemptPayload[]>();
 
   constructor(private options: ReportingLabsCypressOptions, private config: Record<string, unknown> = {}) {
     this.masker = makeMasker(options.maskKeys ?? [], { knownValues: options.maskValues ?? [], fromEnv: options.maskFromEnv !== false });
     this.base = typeof config.projectRoot === 'string' && config.projectRoot ? config.projectRoot : process.cwd();
     this.outDir = path.resolve(this.base, options.outputFolder || 'reporting-labs');
     this.assetsDir = path.join(this.outDir, 'assets');
+  }
+
+  addAttempt(p: AttemptPayload): void {
+    if (!p || !Array.isArray(p.titlePath)) return;
+    const key = attemptKey(p.spec, p.titlePath);
+    const list = this.attempts.get(key) ?? [];
+    list[Math.max(0, Number(p.retry) || 0)] = p;
+    this.attempts.set(key, list);
   }
 
   beforeRun(d: CyBeforeRun = {}): void {
@@ -158,9 +187,11 @@ export class CypressCollector {
     const cyTests = results.tests ?? [];
     const out: TestData[] = [];
     let cursor = startedAt;
+    const specRel = (s.relative || spec.relative || '').split(path.sep).join('/');
     for (const ct of cyTests) {
       const t = this.toTest(ct, abs, file, cursor);
-      cursor += t.duration;
+      this.enrich(t, this.attempts.get(attemptKey(specRel, ct.title ?? [])), abs);
+      cursor = Math.max(cursor + t.duration, ...t.results.map(r => r.startTime + r.duration));
       out.push(t);
     }
     // The spec could not run at all (syntax error, failed import, uncaught error before the first test)
@@ -176,6 +207,10 @@ export class CypressCollector {
 
   async afterRun(results: CyAfterRun = {}): Promise<string | undefined> {
     if (!this.tests.length) return undefined;
+    if (!this.attempts.size && this.options.announce !== false) {
+      console.log("\n  reporting-labs: no steps or API calls came from the browser. For them, add  import 'reporting-labs/cypress/support';\n" +
+        "  to cypress/support/e2e.js and make sure setupNodeEvents ends with  return config;");
+    }
     const project = this.browser || results.browserName || '';
     for (const t of this.tests) {
       t.project = project;
@@ -248,6 +283,41 @@ export class CypressCollector {
     return t;
   }
 
+  /** What the support file sent for this test: real per-attempt times, steps, API calls, each attempt's error, meta(). */
+  enrich(t: TestData, attempts: AttemptPayload[] | undefined, abs: string): void {
+    if (!attempts || !attempts.length) return;
+    t.results.forEach((r, i) => {
+      const a = attempts[i];
+      if (!a) return;
+      if (typeof a.start === 'number' && a.start > 0) r.startTime = a.start;
+      if (typeof a.duration === 'number') r.duration = Math.max(0, Math.round(a.duration));
+      // API calls first: masking them teaches the masker the secrets they carry (a password in a body), so the
+      // same value typed in a step is blanked too
+      r.api = (a.api ?? []).map(c => this.masker.mask(trimApi(c, this.options)) as ApiCall);
+      r.steps = (a.steps ?? []).map(st => this.maskStep(st));
+      if (r.status === 'failed' && !r.errors.length && a.err?.message) r.errors.push(this.toError([a.err.message, a.err.stack ? a.err.stack.replace(/^[^\n]*\n?/, '') : ''].filter(Boolean).join('\n'), abs));
+      const cf = a.err?.codeFrame;
+      const e = r.errors[0];
+      if (e && cf?.line && !e.location && abs) {
+        e.location = { file: this.rel(abs), line: cf.line, column: cf.column ?? 0 };
+        const snip = codeFrame(abs, cf.line, cf.column ?? 0);
+        if (snip) e.snippet = snip;
+      }
+    });
+    t.duration = t.results.reduce((n, r) => n + r.duration, 0);
+    // meta() in the test wins over comments and tags, as in Playwright
+    const m = attempts[attempts.length - 1]?.meta ?? {};
+    for (const [k, v] of Object.entries(m)) {
+      if (v === undefined || v === null || typeof v === 'object' && !Array.isArray(v)) continue;
+      t.meta[k.toLowerCase()] = this.masker.maskStr(Array.isArray(v) ? v.join(', ') : String(v));
+    }
+  }
+
+  private maskStep(st: StepData): StepData {
+    return { title: this.masker.maskStr(String(st.title ?? '')), category: String(st.category ?? 'cy'), duration: Math.max(0, Math.round(Number(st.duration) || 0)),
+      ...(st.error ? { error: this.masker.maskStr(stripAnsi(String(st.error))) } : {}), steps: (st.steps ?? []).map(c => this.maskStep(c)) };
+  }
+
   /** displayError is the message plus a stack ("    at …"); the first frame in the spec file gives the location. */
   toError(display: string, abs: string): ErrorData {
     const clean = stripAnsi(display);
@@ -286,13 +356,14 @@ export class CypressCollector {
       if (ti === undefined) {
         // custom name: the test whose time window holds takenAt, else the spec's only test
         const at = Date.parse(sh.takenAt ?? '');
-        let cursor = specStart;
-        tests.forEach((t, i) => { if (ti === undefined && at && at >= cursor && at <= cursor + t.duration + 1000) ti = i; cursor += t.duration; });
+        tests.forEach((t, i) => { if (ti === undefined && at && t.results.some(r => at >= r.startTime && at <= r.startTime + r.duration + 1000)) ti = i; });
         if (ti === undefined && tests.length === 1) ti = 0;
       }
       if (ti === undefined || !tests[ti]) continue;
       const t = tests[ti];
-      const ri = attemptM ? Math.min(Number(attemptM[1]) - 1, t.results.length - 1) : (/\(failed\)/.test(base) ? firstFailed(t) : t.results.length - 1);
+      const at = Date.parse(sh.takenAt ?? '');
+      const byTime = at ? t.results.findIndex(r => at >= r.startTime && at <= r.startTime + r.duration + 1000) : -1;
+      const ri = attemptM ? Math.min(Number(attemptM[1]) - 1, t.results.length - 1) : (/\(failed\)/.test(base) ? firstFailed(t) : byTime >= 0 ? byTime : t.results.length - 1);
       const a = this.attachment(sh.path, /\(failed\)/.test(base) ? 'screenshot' : (sh.name || stem), t.title);
       if (a) t.results[Math.max(0, ri)].attachments.push(a);
     }
@@ -342,6 +413,17 @@ export class CypressCollector {
     if (!path.isAbsolute(file)) return file.split(path.sep).join('/');
     try { return path.relative(this.base, file).split(path.sep).join('/'); } catch { return file; }
   }
+}
+
+function attemptKey(spec: string | undefined, titlePath: string[]): string {
+  return String(spec ?? '').split('\\').join('/') + '\u0000' + titlePath.map(String).join('\u0000');
+}
+
+/** Bodies are kept up to apiMaxBody characters (default 64 KB), as for Playwright. */
+function trimApi(c: ApiCall, options: ReportingLabsCypressOptions): ApiCall {
+  const max = (options as { apiMaxBody?: number }).apiMaxBody ?? 64 * 1024;
+  const cut = (v: unknown) => { if (v === undefined || v === null) return v; const s = typeof v === 'string' ? v : JSON.stringify(v); return s.length > max ? s.slice(0, max) + '…' : v; };
+  return { ...c, requestBody: cut(c.requestBody), responseBody: cut(c.responseBody) };
 }
 
 function cyStatus(state?: string): 'passed' | 'failed' | 'skipped' {

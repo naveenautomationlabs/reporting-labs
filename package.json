@@ -37,6 +37,10 @@
     "./cypress": {
       "types": "./dist/cypress/index.d.ts",
       "default": "./dist/cypress/index.js"
+    },
+    "./cypress/support": {
+      "types": "./dist/cypress/support.d.ts",
+      "default": "./dist/cypress/support.js"
     }
   },
   "bin": {
