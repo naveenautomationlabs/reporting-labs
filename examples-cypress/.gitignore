@@ -1,0 +1,5 @@
+node_modules/
+reporting-labs/
+reporting-labs.history.json
+cypress/screenshots/
+cypress/videos/

@@ -12,7 +12,7 @@
 
 reportingLabs turns a test run into a single HTML file. No server. No upload. No login. Open the file in a browser, attach it to a CI job, or send it on Slack or email. It just works.
 
-Today it ships with a **Playwright** reporter and a **WebdriverIO** reporter. Cypress and Jest/Vitest are on the roadmap. The same report is also available for [Java](https://github.com/naveenautomationlabs/reporting-labs-java) and [Python](https://github.com/naveenautomationlabs/reporting-labs-python).
+Today it ships with a **Playwright** reporter, a **WebdriverIO** reporter and a **Cypress** plugin. Jest/Vitest is on the roadmap. The same report is also available for [Java](https://github.com/naveenautomationlabs/reporting-labs-java) and [Python](https://github.com/naveenautomationlabs/reporting-labs-python).
 
 > ♥ **Free and open source, no paid tier.** If reportingLabs saves your team time, [support its development](https://reportinglabs.dev/support) (Razorpay for India, Stripe for everywhere else). A ⭐ on GitHub helps too.
 
@@ -152,7 +152,7 @@ test('completes purchase', async ({ page }) => {
 - **For a whole group:** a comment above `test.describe` applies to every test inside it.
 - **Tags:** a line with only `@words` (`@smoke @regression`) becomes tags. `@P0` sets the priority, `@critical` the severity.
 - **Your old comments are safe.** A comment with an empty line before the test, a name in a sentence ("reported by @naveen"), unknown keys and JSDoc tags like `@param` are all ignored.
-- **WebdriverIO** reads them too, above `it()` and `describe()`.
+- **WebdriverIO** and **Cypress** read them too, above `it()` and `describe()`.
 - Turn it off with `commentMeta: false`.
 
 **Don't type it by hand: install the snippets.** In VS Code:
@@ -259,6 +259,8 @@ open reporting-labs/index.html
 
 Run it two or three times to see the history features (new vs known failures, flaky dots, got slower, trend).
 
+For Cypress, [`examples-cypress/`](https://github.com/naveenautomationlabs/reporting-labs/tree/main/examples-cypress) is a tiny offline shop app with a few specs (steps, API calls, a flaky test, a failing hook): `cd examples-cypress && npm install && npx cypress run`.
+
 ## A tour of the report
 
 ### Overview: the whole run on one screen
@@ -345,7 +347,7 @@ Every outcome Playwright can produce, not just pass and fail:
 | Single HTML file, opens without a server | ❌<br><sub>a folder, served by `show-report`</sub> | 🟡<br><sub>single-file mode (2.24+, Allure 3)</sub> | ✅ |
 | Nothing extra to install | ✅ | ❌<br><sub>Allure CLI; Allure 2 needs Java</sub> | ✅<br><sub>one package</sub> |
 | Setup | ✅<br><sub>built in</sub> | 🟡<br><sub>reporter + generate step</sub> | ✅<br><sub>one line</sub> |
-| Frameworks | ❌<br><sub>Playwright only</sub> | ✅<br><sub>many languages</sub> | ✅<br><sub>Playwright, WebdriverIO, pytest, pytest-bdd, Robot, JUnit 5, TestNG, Cucumber</sub> |
+| Frameworks | ❌<br><sub>Playwright only</sub> | ✅<br><sub>many languages</sub> | ✅<br><sub>Playwright, Cypress, WebdriverIO, pytest, pytest-bdd, Robot, JUnit 5, TestNG, Cucumber</sub> |
 | **Each test** | | | |
 | Steps, screenshots, videos, traces | ✅ | ✅ | ✅ |
 | Logs and test data | 🟡<br><sub>as attachments</sub> | 🟡<br><sub>attachments, parameters</sub> | ✅<br><sub>`log()`, `testData()`</sub> |
@@ -721,9 +723,73 @@ export const config = {
 
 Guide: [reportinglabs.dev/get-started/webdriverio](https://reportinglabs.dev/get-started/webdriverio).
 
+## Cypress
+
+The same report from `cypress run` (Cypress 13 to 16):
+- **Tests:** each test under its describe block, every retry as its own attempt (flaky tests are found), passed / failed / skipped, and a spec that could not load.
+- **Steps:** Cypress commands as steps, hooks grouped, the failing command marked.
+- **API tab:** `cy.request` calls with request and response, and the app's own fetch / XHR calls.
+- **Proof:** failure screenshots on the right attempt and the spec video.
+- **Errors explained in plain words:** element not found, covered or hidden element, `cy.request` / `cy.visit` / `cy.wait` failures, errors thrown by the app.
+- **Same as Playwright:** history, PDF, masking, merge.
+
+**1. Register the plugin**
+
+```js
+// cypress.config.js
+const { defineConfig } = require('cypress');
+const { reportingLabs } = require('reporting-labs/cypress');
+
+module.exports = defineConfig({
+  e2e: {
+    setupNodeEvents(on, config) {
+      reportingLabs(on, config, { title: 'Checkout regression' });   // any option from "All options"
+      return config;                                                 // needed: it tells the support file the plugin is on
+    },
+  },
+});
+```
+
+**2. Import the support file** (steps, API calls, `meta()`):
+
+```js
+// cypress/support/e2e.js
+import 'reporting-labs/cypress/support';
+```
+
+Run `npx cypress run`. The report is in `reporting-labs/index.html`.
+A runnable example: [`examples-cypress/`](https://github.com/naveenautomationlabs/reporting-labs/tree/main/examples-cypress).
+
+**Meta** (priority, owner, story...) with `meta()` in the test, or a comment above `it()` / `describe()`:
+
+```js
+import { meta } from 'reporting-labs/cypress/support';
+
+/** @feature checkout @owner asha */
+describe('Checkout', () => {
+  it('places an order', () => {
+    meta({ priority: 'P0', severity: 'critical', story: 'SHOP-12' });
+    cy.visit('/cart');
+  });
+});
+```
+
+Good to know:
+- **Your config already has `before:run`, `after:spec` or `after:run`?** Cypress keeps one handler per event, so the one registered last wins. Call ours from yours:
+  ```js
+  const rl = reportingLabs(on, config, { title: 'Checkout regression' });
+  on('after:spec', (spec, results) => { rl.afterSpec(spec, results); /* your code */ });
+  ```
+  (`rl.beforeRun` and `rl.afterRun` work the same way.) If the report is missing, the run says so.
+- **`cypress open`:** Cypress sends these events in `cypress run`. In `cypress open` it sends them only with `experimentalInteractiveRunEvents: true`.
+- **Video:** set `video: true` in the Cypress config. The spec video is attached to failed and flaky tests (`video: 'all'` in our options for every test).
+- **PDF:** printed by an installed Chrome or Edge (Cypress's own Electron cannot print it). If none is found, set `pdf: { chromePath }` or `CHROME_PATH`.
+- **Split across machines** (Cypress Cloud parallel, cypress-split): each machine writes its `reporting-labs` folder. Combine them with `npx reporting-labs merge`, as in [Split your run across shards](#split-your-run-across-shards-then-merge-into-one-report).
+
 ## Roadmap
 
-- Cypress, Jest/Vitest and JUnit XML adapters
+- Jest/Vitest and JUnit XML adapters
+- Cucumber for Cypress (`@badeball/cypress-cucumber-preprocessor`): Gherkin steps as steps
 - AI summary of failures (bring your own API key)
 - Hosted history dashboard across branches and projects
 
@@ -733,7 +799,7 @@ reportingLabs is a library that runs inside your own test run. There is no repor
 
 - **Nothing is sent anywhere.** The reporter makes no network requests of its own; its only traffic is the traffic your tests already make. An opened report makes no external requests either: fonts, scripts and the logo are embedded, so it works offline and behind a firewall. The only exceptions are opt-in (`embedFonts: false`, a logo given as an `https://` URL) or need a click (CI, commit and issue links).
 - **Everything stays on your machine:** the report folder (`reporting-labs/` by default) holds `index.html`, `report.json`, `report.pdf` and `assets/`, plus the run history `reporting-labs.history.json` next to your project. Nothing is written anywhere else. Whoever can read your test artifacts can read the report; deleting them deletes the data.
-- **Secrets are masked before anything is written:** passwords, tokens, cookies, auth headers, API keys, JWTs and card numbers in logs, API bodies and headers, test data, errors and step titles. With Playwright, a value passed to `fill()` shows in the step title unless it is a known secret, so read test passwords from environment variables (masked by default) or list them in `maskValues`. The WebdriverIO reporter masks values typed into password fields.
+- **Secrets are masked before anything is written:** passwords, tokens, cookies, auth headers, API keys, JWTs and card numbers in logs, API bodies and headers, test data, errors and step titles. With Playwright, a value passed to `fill()` shows in the step title unless it is a known secret, so read test passwords from environment variables (masked by default) or list them in `maskValues`. The WebdriverIO reporter and the Cypress support file mask values typed into password fields.
 - **Screenshots, videos and traces are not masked.** They are images and recordings of the application, so run tests against test data, or turn them off for suites that show real personal data.
 - **No runtime dependencies;** `@playwright/test` is an optional peer, the one your project already has. No install or post-install scripts. MIT licensed.
 

@@ -65,9 +65,10 @@ interface CyRunResult {
 interface CyAfterRun {
   status?: string;
   browserName?: string; browserVersion?: string; cypressVersion?: string;
-  startedTestsAt?: string; endedTestsAt?: string; totalFailed?: number;
+  startedTestsAt?: string; endedTestsAt?: string; totalFailed?: number; totalTests?: number;
 }
-type On = (event: string, handler: any) => void;
+// loose on purpose: Cypress's own `on` (PluginEvents, overloaded per event name) and config types must fit as they are
+type On = (...args: any[]) => void;
 
 const DEFAULT_EMBED_LIMIT = 2 * 1024 * 1024;
 const ATTEMPT_TASK = 'reportingLabs:attempt';
@@ -86,7 +87,7 @@ export interface ReportingLabsCypressHandlers {
   afterRun: (results: CyAfterRun) => Promise<string | undefined>;
 }
 
-export function reportingLabs(on: On, config: Record<string, unknown> = {}, options: ReportingLabsCypressOptions = {}): ReportingLabsCypressHandlers {
+export function reportingLabs(on: On, config: any = {}, options: ReportingLabsCypressOptions = {}): ReportingLabsCypressHandlers {
   const opts = withRuntimeOverrides(options);
   // tells the support file the task is registered; without it, cy.task would fail every test
   // Cypress 16 reads it with Cypress.expose() (config.expose); 12 to 15 with Cypress.env() (config.env)
@@ -206,7 +207,12 @@ export class CypressCollector {
   }
 
   async afterRun(results: CyAfterRun = {}): Promise<string | undefined> {
-    if (!this.tests.length) return undefined;
+    if (!this.tests.length) {
+      if ((results.totalTests ?? 0) > 0) console.warn('\n  reporting-labs: no report: no spec results reached it. Cypress keeps one handler per event, so an after:spec\n' +
+        '  registered after reportingLabs() replaced ours. Call it from yours:  const rl = reportingLabs(on, config, {…});\n' +
+        "  on('after:spec', (spec, results) => { rl.afterSpec(spec, results); /* your code */ });\n");
+      return undefined;
+    }
     if (!this.attempts.size && this.options.announce !== false) {
       console.log("\n  reporting-labs: no steps or API calls came from the browser. For them, add  import 'reporting-labs/cypress/support';\n" +
         "  to cypress/support/e2e.js and make sure setupNodeEvents ends with  return config;");

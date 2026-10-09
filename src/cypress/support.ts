@@ -181,7 +181,7 @@ function api(): Api[] {
         status: Number(r['Response Status'] ?? yielded.status) || undefined,
         duration: typeof yielded.duration === 'number' ? yielded.duration : undefined,
         requestHeaders: r['Request Headers'], requestBody: parse(r['Request Body']),
-        responseHeaders: r['Response Headers'], responseBody: r['Response Body'] ?? yielded.body,
+        responseHeaders: r['Response Headers'], responseBody: parse(r['Response Body'] ?? yielded.body),
       });
     }
   }
