@@ -100,6 +100,8 @@ export interface ReportingLabsOptions {
   env?: Record<string, string>;
   /** Show an "Open in VS Code" link on every test (vscode://file/...). Default: true locally, false when the CI env var is set. */
   editorLinks?: boolean;
+  /** Open the steps that lead to a failure when a failed test is opened (default true). false: every step with sub-steps starts collapsed, also on failures. */
+  expandFailedSteps?: boolean;
   /** Style Given/When/Then steps as Gherkin and label describe blocks as Features/Scenarios. Default: auto-detect */
   bdd?: boolean;
 }
@@ -281,5 +283,6 @@ export interface ReportData {
     links: Record<string, string>;
     customCss: string;
     editorLinks: boolean;
+    expandFailedSteps?: boolean;
   };
 }

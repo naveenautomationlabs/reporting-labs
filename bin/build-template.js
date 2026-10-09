@@ -60,6 +60,7 @@ const seed = {
     accent: ACCENT_SENTINEL,
     customCss: CUSTOM_SENTINEL,
     editorLinks: true,
+    expandFailedSteps: true,
   },
 };
 
