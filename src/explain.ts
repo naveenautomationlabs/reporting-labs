@@ -178,10 +178,15 @@ function explainCypress(msg: string, out: Out): ErrorExplain | undefined {
   const text = retry ? body.slice(retry[0].length) : body;
   const within = timeoutMs ? ' within ' + secs(timeoutMs) : '';
   const cmd = pick(text, /`?(cy\.\w+)\(\)`?\s+(?:failed|timed out|could not)/);
-  const isCy = !!retry || !!cmd || /CypressError|originated from your application code|for your remote page to load|^`?cy\.\w+\(\)/.test(msg);
+  const isCy = !!retry || !!cmd || /CypressError|originated from your application code|for your remote page to load|error preparing this test file|^`?cy\.\w+\(\)/.test(msg);
   const chai = text.match(/^expected ([\s\S]+?) (?:not to|to(?: (not))?) (deeply equal|have length|have text|have value|equal|eql|be|have|include|contain|match|exist)\b\s*([\s\S]*)$/);
   if (!isCy && !chai) return undefined;
 
+  // ── the spec file itself could not be bundled / loaded: no test in it ran ──
+  if (/error preparing this test file/.test(msg)) {
+    const why = pick(msg, /Module not found: Error: ([^\n]+?)(?: in '[^']*')?$/m) ?? pick(msg, /^((?:SyntaxError|TypeError|ReferenceError|Error):(?! Webpack)[^\n]+)$/m);
+    return out('script', `The spec file could not be loaded${why ? ': ' + short(why, 110) : ''}. No test in it ran.`, 'Fix the import path or the syntax error in the spec (or in a file it imports).');
+  }
   // ── the app threw, not the test ──
   if (/originated from your application code, not from Cypress/.test(msg)) {
     const appErr = pick(msg, /^\s*>\s*(.+)$/m);

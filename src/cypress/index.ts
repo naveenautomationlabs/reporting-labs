@@ -242,6 +242,8 @@ export class CypressCollector {
       outcome, duration: total, results, retries: attempts.length - 1,
     };
     if (ct.state === 'skipped') t.note = 'Not run: a before / beforeEach hook failed earlier in this spec.';
+    const hook = /during a `(before all|before each|after each|after all)` hook/.exec(ct.displayError ?? '');
+    if (hook) t.note = `Failed in the ${hook[1]} hook${/before all|after all/.test(hook[1]) ? ', so Cypress skipped the other tests of this describe and did not retry' : ''}.`;
     if (ct.state === 'pending') t.annotations.push({ type: 'skip' });
     return t;
   }
