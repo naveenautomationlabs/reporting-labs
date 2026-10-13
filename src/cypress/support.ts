@@ -10,6 +10,8 @@
  *   - cy.request calls with their request and response, and the app's own fetch / XHR calls, for the API tab
  *   - the error of every attempt with Cypress's code frame (the Node side only gets the last one)
  *   - meta({ owner, priority, … }) called in the test
+ *   - with @badeball/cypress-cucumber-preprocessor: the Gherkin steps (Given / When / Then) with the commands each ran,
+ *     Before / After hooks, the steps a failure left unrun, and the scenario's line, tags, example row, data tables
  * A value typed into a password field is masked here; everything else is masked by the plugin with the report's
  * masking rules. Nothing in this file may ever fail a test: every handler is guarded.
  *
@@ -23,7 +25,7 @@ declare function afterEach(fn: (this: any) => void): void;
 
 interface CyLog { get(key?: string): any; invoke?(key: string): any }
 interface Collected { log: CyLog; start: number; hook?: string; masked?: boolean }
-interface Step { title: string; category: string; duration: number; error?: string; steps: Step[] }
+interface Step { title: string; category: string; duration: number; error?: string; status?: 'skipped'; steps: Step[] }
 interface Api { method: string; url: string; status?: number; duration?: number; requestHeaders?: Record<string, string>; requestBody?: unknown; responseHeaders?: Record<string, string>; responseBody?: unknown }
 
 const TASK = 'reportingLabs:attempt';
@@ -75,27 +77,40 @@ function build(t: any): any {
     spec: Cypress.spec && (Cypress.spec.relative || Cypress.spec.name),
     titlePath: typeof t.titlePath === 'function' ? t.titlePath() : [t.title],
     retry, state: t.state, start, duration, err,
-    steps: steps(start + duration, err?.message),
+    steps: steps(start + duration, err?.message, t),
     api: api(),
     meta: currentMeta,
+    gherkin: gherkin(t),
   };
 }
 
 const clean = (s: unknown) => String(s ?? '').replace(/\*\*/g, '').replace(/\s+/g, ' ').trim();
 const SKIP = new Set(['new url', 'page load', 'route', 'xhr', 'fetch', 'task', 'log']);
+const HOOKS = /^(Before|After|BeforeStep|AfterStep|BeforeAll|AfterAll)$/;
 
-/** Commands as steps: hooks grouped, chained commands under their parent, assertions under what they check. */
-function steps(end: number, errMsg?: string): Step[] {
+/** Commands as steps: hooks grouped, chained commands under their parent, assertions under what they check, commands
+ *  inside a log group (a Gherkin step, cy.within, a custom command that opens a group) under that group. */
+function steps(end: number, errMsg: string | undefined, t: any): Step[] {
+  const g = scenario(t);
   const items = logs.filter(c => {
     const name = c.log.get('name');
     if (SKIP.has(name) && name !== 'route') return false;
     if (c.log.get('event')) return false;   // page loads, url changes, the app's own fetch / XHR (those go to the API tab)
     if (c.log.get('hidden')) return false;
+    if (g && name === 'DataTable') return false;   // sent with the scenario (see gherkin())
     return true;
   });
   const out: Step[] = [];
   const parents = new Map<string, Step>();   // chainerId → parent step
+  const groups = new Map<string, Step>();    // log id of a group → its step
+  const up = new Map<Step, Step>();          // step → the step it is under
+  // a step's time and failure count for every step it is under
+  const add = (parent: Step, step: Step) => {
+    parent.steps.push(step); up.set(step, parent);
+    for (let p: Step | undefined = parent; p; p = up.get(p)) { p.duration += step.duration; if (step.error) p.error = step.error; }
+  };
   let hookStep: Step | undefined, hookName: string | undefined;
+  let ran = 0;   // Gherkin steps that started (the rest of the scenario's steps did not run)
   items.forEach((c, i) => {
     const next = items[i + 1];
     const name = String(c.log.get('name') || '');
@@ -103,26 +118,38 @@ function steps(end: number, errMsg?: string): Step[] {
     if (c.masked) message = '****';
     if (name === 'request' && !message) message = clean(display(c.log));   // "POST 200 /api/users"
     const isAssert = name === 'assert';
+    const group = !!c.log.get('groupStart');
+    const inGroup = groups.get(String(c.log.get('group') ?? ''));
+    const gherkinHook = !!g && group && HOOKS.test(name.trim());
+    const gherkinStep = !!g && group && !gherkinHook && /^\*\*[\s\S]*\*\*$/.test(String(c.log.get('message') ?? '').trim());
     const step: Step = {
-      title: name === 'route' ? clean(routeTitle(c.log)) : isAssert ? message : `${name}${message ? ' ' + message : ''}`,
-      category: isAssert ? 'assert' : 'cy',
+      title: gherkinHook ? `${name.trim()} hook${message ? ': ' + message : ''}`
+        : gherkinStep ? `${name.trim()} ${message}`
+        : name === 'route' ? clean(routeTitle(c.log)) : isAssert ? message : `${name}${message ? ' ' + message : ''}`,
+      category: gherkinHook ? 'hook' : gherkinStep ? 'test.step' : isAssert ? 'assert' : 'cy',
       duration: Math.max(0, (next ? next.start : end) - c.start),
       steps: [],
     };
+    if (gherkinStep && !inGroup) ran++;
     if (c.log.get('state') === 'failed') step.error = clean(errMsg || c.log.get('err')?.message || 'failed');
     // the hook it ran in: one step per hook, the commands inside
-    let container = out;
+    let container: Step | undefined;
     if (c.hook) {
       if (!hookStep || hookName !== c.hook) { hookName = c.hook; hookStep = { title: `${camel(c.hook)} hook`, category: 'hook', duration: 0, steps: [] }; out.push(hookStep); }
-      hookStep.duration += step.duration;
-      if (step.error) hookStep.error = step.error;
-      container = hookStep.steps;
+      container = hookStep;
     } else { hookStep = undefined; hookName = undefined; }
     const chainer = String(c.log.get('chainerId') || '');
     const parent = c.log.get('type') === 'child' ? parents.get(chainer) : undefined;
-    if (parent) { parent.steps.push(step); parent.duration += step.duration; if (step.error) parent.error = step.error; }
-    else { container.push(step); if (chainer) parents.set(chainer, step); }
+    const under = parent ?? inGroup ?? container;
+    if (under) add(under, step);
+    else out.push(step);
+    if (!parent && chainer) parents.set(chainer, step);
+    if (group) groups.set(String(c.log.get('id') ?? ''), step);
   });
+  // Cucumber stops a scenario at the first failing step: the steps after it are listed, greyed out. A step whose
+  // definition returned "pending" is greyed out too.
+  if (g && t && t.state === 'pending') { const last = [...out].reverse().find(x => x.category === 'test.step'); if (last && !last.error) last.status = 'skipped'; }
+  if (g) for (const ps of g.pickle.steps.slice(ran)) out.push({ title: `${keywordOf(g, ps)} ${ps.text}`, category: 'test.step', duration: 0, status: 'skipped', steps: [] });
   return out;
 }
 
@@ -191,4 +218,87 @@ function api(): Api[] {
 function parse(v: unknown): unknown {
   if (typeof v !== 'string') return v;
   try { return JSON.parse(v); } catch { return v; }
+}
+
+// ── @badeball/cypress-cucumber-preprocessor ─────────────────────────────────────────────────────────────────────────
+// It puts the running scenario on window.testState: the parsed feature file, the pickle (the scenario with its steps
+// and tags, an Outline row filled in) and the step running now. Read only; nothing here changes what it does.
+
+interface Scenario { doc: any; pickle: any; step?: any; ast: Map<string, any> }
+const astCache = new WeakMap<object, Map<string, any>>();
+
+/** The scenario this test runs, or undefined (not a feature file, or the state belongs to another test). */
+function scenario(t: any): Scenario | undefined {
+  try {
+    const ts = (globalThis as any).testState;
+    const pickle = ts && ts.pickle;
+    if (!pickle || !ts.gherkinDocument || !Array.isArray(pickle.steps)) return undefined;
+    const title = String((t && t.title) || '');
+    const name = String(pickle.name || '');
+    if (title && name && title !== name && !title.startsWith(name + ' (example #')) return undefined;
+    let ast = astCache.get(ts.gherkinDocument);
+    if (!ast) { ast = index(ts.gherkinDocument); astCache.set(ts.gherkinDocument, ast); }
+    return { doc: ts.gherkinDocument, pickle, step: ts.pickleStep, ast };
+  } catch { return undefined; }
+}
+
+/** Every Background / Scenario step, Scenario and Examples row of the feature by its id. */
+function index(doc: any): Map<string, any> {
+  const m = new Map<string, any>();
+  const visit = (children: any[], rule?: any) => {
+    for (const ch of children || []) {
+      const bg = ch.background;
+      if (bg) for (const st of bg.steps || []) m.set(st.id, { step: st });
+      const sc = ch.scenario;
+      if (sc) {
+        m.set(sc.id, { scenario: sc, rule });
+        for (const st of sc.steps || []) m.set(st.id, { step: st });
+        for (const ex of sc.examples || []) for (const row of ex.tableBody || []) m.set(row.id, { row, examples: ex });
+      }
+      if (ch.rule) visit(ch.rule.children, ch.rule);
+    }
+  };
+  visit(doc.feature && doc.feature.children);
+  return m;
+}
+
+function keywordOf(g: Scenario, ps: any): string {
+  const node = g.ast.get(ps && ps.astNodeIds && ps.astNodeIds[0]);
+  return String((node && node.step && node.step.keyword) || '').trim() || '*';
+}
+
+function lineOf(g: Scenario, ps: any): number | undefined {
+  const node = g.ast.get(ps && ps.astNodeIds && ps.astNodeIds[0]);
+  return node && node.step && node.step.location ? node.step.location.line : undefined;
+}
+
+/** What the report needs about the scenario: where it is, its tags, its example row, data tables and doc strings. */
+function gherkin(t: any): any {
+  const g = scenario(t);
+  if (!g) return undefined;
+  const ids: string[] = g.pickle.astNodeIds || [];
+  const sc = g.ast.get(ids[0]) || {};
+  const row = ids.length > 1 ? g.ast.get(ids[ids.length - 1]) : undefined;
+  const f = g.doc.feature || {};
+  const out: any = {
+    feature: f.name, rule: sc.rule && sc.rule.name,
+    keyword: sc.scenario && sc.scenario.keyword,
+    line: (row && row.row && row.row.location && row.row.location.line) || (sc.scenario && sc.scenario.location && sc.scenario.location.line),
+    tags: (g.pickle.tags || []).map((x: any) => String(x.name)),
+  };
+  if (row && row.row && row.examples) {
+    out.example = { header: (row.examples.tableHeader && row.examples.tableHeader.cells || []).map((c: any) => String(c.value)), values: (row.row.cells || []).map((c: any) => String(c.value)) };
+  }
+  const args: any[] = [];
+  for (const ps of g.pickle.steps) {
+    const a = ps.argument;
+    if (!a) continue;
+    const step = `${keywordOf(g, ps)} ${ps.text}`;
+    if (a.dataTable) args.push({ step, table: (a.dataTable.rows || []).map((r: any) => (r.cells || []).map((c: any) => String(c.value))) });
+    else if (a.docString) args.push({ step, docString: String(a.docString.content ?? '') });
+  }
+  if (args.length) out.args = args;
+  // the step that was running when the test stopped: failed, or returned "pending"
+  if (g.step && (t.state === 'failed' || t.state === 'pending')) out.stoppedAt = { step: `${keywordOf(g, g.step)} ${g.step.text}`, line: lineOf(g, g.step), state: t.state };
+  return out;
 }

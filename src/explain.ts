@@ -180,6 +180,11 @@ function explainCypress(msg: string, out: Out): ErrorExplain | undefined {
   const cmd = pick(text, /`?(cy\.\w+)\(\)`?\s+(?:failed|timed out|could not)/);
   const isCy = !!retry || !!cmd || /CypressError|originated from your application code|for your remote page to load|error preparing this test file|^`?cy\.\w+\(\)/.test(msg);
   const chai = text.match(/^expected ([\s\S]+?) (?:not to|to(?: (not))?) (deeply equal|have length|have text|have value|equal|eql|be|have|include|contain|match|exist)\b\s*([\s\S]*)$/);
+  // ── Cucumber (@badeball/cypress-cucumber-preprocessor): a step with no step definition, or with several ──
+  let g = text.match(/Step implementation missing for:? "?([^\n]+?)"?\.?\s*(?:\n|$)/);
+  if (g) return out('script', `The step "${short(g[1], 90)}" has no step definition.`, 'Add a Given / When / Then for it in your step definitions (the error shows a snippet), or check the stepDefinitions paths in the preprocessor config.', { label: 'Step not defined' });
+  g = text.match(/Multiple matching step definitions for:? "?([^\n]+?)"?\s*(?:\n|$)/);
+  if (g) return out('script', `More than one step definition matches "${short(g[1], 90)}".`, 'Make the step texts or their expressions differ, so exactly one step definition matches.', { label: 'Step defined twice' });
   if (!isCy && !chai) return undefined;
 
   // ── the spec file itself could not be bundled / loaded: no test in it ran ──

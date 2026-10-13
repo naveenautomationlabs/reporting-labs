@@ -259,7 +259,7 @@ open reporting-labs/index.html
 
 Run it two or three times to see the history features (new vs known failures, flaky dots, got slower, trend).
 
-For Cypress, [`examples-cypress/`](https://github.com/naveenautomationlabs/reporting-labs/tree/main/examples-cypress) is a tiny offline shop app with a few specs (steps, API calls, a flaky test, a failing hook): `cd examples-cypress && npm install && npx cypress run`.
+For Cypress, [`examples-cypress/`](https://github.com/naveenautomationlabs/reporting-labs/tree/main/examples-cypress) is a tiny offline shop app with a few specs (steps, API calls, a flaky test, a failing hook): `cd examples-cypress && npm install && npx cypress run`. With Cucumber: [`examples-cypress-cucumber/`](https://github.com/naveenautomationlabs/reporting-labs/tree/main/examples-cypress-cucumber), the same app with feature files.
 
 ## A tour of the report
 
@@ -347,7 +347,7 @@ Every outcome Playwright can produce, not just pass and fail:
 | Single HTML file, opens without a server | ❌<br><sub>a folder, served by `show-report`</sub> | 🟡<br><sub>single-file mode (2.24+, Allure 3)</sub> | ✅ |
 | Nothing extra to install | ✅ | ❌<br><sub>Allure CLI; Allure 2 needs Java</sub> | ✅<br><sub>one package</sub> |
 | Setup | ✅<br><sub>built in</sub> | 🟡<br><sub>reporter + generate step</sub> | ✅<br><sub>one line</sub> |
-| Frameworks | ❌<br><sub>Playwright only</sub> | ✅<br><sub>many languages</sub> | ✅<br><sub>Playwright, Cypress, WebdriverIO, pytest, pytest-bdd, Robot, JUnit 5, TestNG, Cucumber</sub> |
+| Frameworks | ❌<br><sub>Playwright only</sub> | ✅<br><sub>many languages</sub> | ✅<br><sub>Playwright, Cypress (+ Cucumber), WebdriverIO, pytest, pytest-bdd, Robot, JUnit 5, TestNG, Cucumber</sub> |
 | **Each test** | | | |
 | Steps, screenshots, videos, traces | ✅ | ✅ | ✅ |
 | Logs and test data | 🟡<br><sub>as attachments</sub> | 🟡<br><sub>attachments, parameters</sub> | ✅<br><sub>`log()`, `testData()`</sub> |
@@ -786,10 +786,43 @@ Good to know:
 - **PDF:** printed by an installed Chrome or Edge (Cypress's own Electron cannot print it). If none is found, set `pdf: { chromePath }` or `CHROME_PATH`.
 - **Split across machines** (Cypress Cloud parallel, cypress-split): each machine writes its `reporting-labs` folder. Combine them with `npx reporting-labs merge`, as in [Split your run across shards](#split-your-run-across-shards-then-merge-into-one-report).
 
+### Cypress with Cucumber
+
+With [@badeball/cypress-cucumber-preprocessor](https://github.com/badeball/cypress-cucumber-preprocessor) (Cypress 13 to 16), each scenario is a report row:
+- **Under its Feature and Rule**, at its line in the `.feature` file, with a Scenario badge.
+- **Given / When / Then steps** with the Cypress commands each one ran, Before / After hooks, the failing step marked and the steps it left unrun greyed out.
+- **Scenario Outline rows** named after their values, with the row as an Examples table. Data tables and doc strings as test data.
+- **Tags:** `@P0`–`@P4` set the priority, `@blocker` / `@critical` / `@major` / `@minor` / `@trivial` the severity, `@owner:asha` (or `@story:SHOP-12`, `@feature:…`…) any meta, anything else is a tag. Feature and Rule tags apply to their scenarios. `meta()` works in step definitions.
+- **Errors:** the step definition line (or the step in the feature file), "Step not defined" / "Step defined twice", and a step returning `"pending"`.
+
+Same two steps as above. Call `reportingLabs()` **after** `addCucumberPreprocessorPlugin()`:
+
+```js
+// cypress.config.js
+const { defineConfig } = require('cypress');
+const createBundler = require('@bahmutov/cypress-esbuild-preprocessor');
+const { addCucumberPreprocessorPlugin } = require('@badeball/cypress-cucumber-preprocessor');
+const { createEsbuildPlugin } = require('@badeball/cypress-cucumber-preprocessor/esbuild');
+const { reportingLabs } = require('reporting-labs/cypress');
+
+module.exports = defineConfig({
+  e2e: {
+    specPattern: 'cypress/e2e/**/*.feature',
+    async setupNodeEvents(on, config) {
+      await addCucumberPreprocessorPlugin(on, config);
+      on('file:preprocessor', createBundler({ plugins: [createEsbuildPlugin(config)] }));
+      reportingLabs(on, config, { title: 'Checkout regression' });   // last: it also runs the preprocessor's handlers
+      return config;
+    },
+  },
+});
+```
+
+Cypress keeps the last `before:run` / `after:spec` / `after:run` handler. Ours call the preprocessor's, so its own messages, JSON and HTML reports keep working. If `reportingLabs()` comes first, the run says the report could not be written. Works the same with the webpack bundler. A runnable example: [`examples-cypress-cucumber/`](https://github.com/naveenautomationlabs/reporting-labs/tree/main/examples-cypress-cucumber).
+
 ## Roadmap
 
 - Jest/Vitest and JUnit XML adapters
-- Cucumber for Cypress (`@badeball/cypress-cucumber-preprocessor`): Gherkin steps as steps
 - AI summary of failures (bring your own API key)
 - Hosted history dashboard across branches and projects
 

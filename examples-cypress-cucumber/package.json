@@ -1,0 +1,15 @@
+{
+  "name": "reporting-labs-cypress-cucumber-example",
+  "private": true,
+  "description": "reportingLabs with Cypress and Cucumber (@badeball/cypress-cucumber-preprocessor): a tiny local app, a few feature files, one command",
+  "scripts": {
+    "test": "cypress run"
+  },
+  "devDependencies": {
+    "@badeball/cypress-cucumber-preprocessor": "^28.0.0",
+    "@bahmutov/cypress-esbuild-preprocessor": "^2.2.0",
+    "cypress": "^15.0.0",
+    "esbuild": "^0.28.0",
+    "reporting-labs": "^0.6.18"
+  }
+}
