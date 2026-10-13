@@ -20,6 +20,11 @@
  * come from the spec file itself. Cypress allows one handler per event, so if your config already listens to
  * before:run / after:spec / after:run, call the handlers this returns from your own (see README).
  *
+ * Cucumber (@badeball/cypress-cucumber-preprocessor): call reportingLabs() after addCucumberPreprocessorPlugin(). The
+ * scenarios become report rows with their Gherkin steps, tags as tags and meta, Outline rows and data tables, and the
+ * preprocessor's own before:run / after:spec / after:run handlers (its messages, JSON and HTML reports) still run:
+ * ours call them, since Cypress keeps only the handler registered last.
+ *
  * Nothing here touches the Playwright or WebdriverIO reporters; it only reuses the shared helpers.
  */
 import * as fs from 'fs';
@@ -79,6 +84,16 @@ export interface AttemptPayload {
   spec?: string; titlePath?: string[]; retry?: number; state?: string; start?: number; duration?: number;
   err?: { message?: string; stack?: string; codeFrame?: { line?: number; column?: number; relativeFile?: string } };
   steps?: StepData[]; api?: ApiCall[]; meta?: Record<string, unknown>;
+  /** Set for a Cucumber scenario (see gherkin() in support.ts). */
+  gherkin?: GherkinPayload;
+}
+
+export interface GherkinPayload {
+  feature?: string; rule?: string; keyword?: string; line?: number; tags?: string[];
+  example?: { header?: string[]; values?: string[] };
+  args?: { step?: string; table?: string[][]; docString?: string }[];
+  /** The step that was running when the scenario stopped: it failed, or its definition returned "pending". */
+  stoppedAt?: { step?: string; line?: number; state?: string };
 }
 
 export interface ReportingLabsCypressHandlers {
@@ -107,11 +122,35 @@ export function reportingLabs(on: On, config: any = {}, options: ReportingLabsCy
   if (typeof on === 'function') {
     // what the support file collects in the browser; Cypress merges this with the project's own tasks
     on('task', { [ATTEMPT_TASK]: (payload: AttemptPayload) => { safe(() => collector.addAttempt(payload)); return null; } });
-    on('before:run', handlers.beforeRun);
-    on('after:spec', handlers.afterSpec);
-    on('after:run', handlers.afterRun);
+    // Cypress keeps the handler registered last: if the Cucumber preprocessor registered its own before ours, ours run
+    // its handlers too, so its reports keep working
+    on('before:run', async (d: CyBeforeRun) => { handlers.beforeRun(d); await cucumberHandler(config, 'beforeRunHandler'); });
+    on('after:spec', async (spec: CySpec, results: CyRunResult) => { handlers.afterSpec(spec, results); await cucumberHandler(config, 'afterSpecHandler', spec, results); });
+    on('after:run', async (results: CyAfterRun) => { const out = await handlers.afterRun(results); await cucumberHandler(config, 'afterRunHandler', results); return out; });
   }
   return handlers;
+}
+
+const CUCUMBER = '@badeball/cypress-cucumber-preprocessor';
+const CUCUMBER_FLAG = '__cypress_cucumber_preprocessor_dont_use_this_suite';
+
+/** Runs one of the Cucumber preprocessor's run handlers, when addCucumberPreprocessorPlugin() was called for this config. */
+async function cucumberHandler(config: any, name: 'beforeRunHandler' | 'afterSpecHandler' | 'afterRunHandler', ...args: unknown[]): Promise<void> {
+  const attached = (k: string) => { try { return !!config?.[k]?.[CUCUMBER_FLAG]?.isEventHandlersAttached; } catch { return false; } };
+  if (!attached('expose') && !attached('env')) return;
+  let fn: unknown;
+  try {
+    // the copy the project's cypress.config loaded, so the handlers share its state
+    const root = typeof config?.projectRoot === 'string' && config.projectRoot ? config.projectRoot : process.cwd();
+    fn = require(require.resolve(CUCUMBER, { paths: [root] }))[name];
+  } catch { return; }
+  if (typeof fn !== 'function') return;
+  try { await fn(config, ...args); }
+  catch (e) {
+    // its handlers already run on their own (cypress-on-fix, or called from the project's handler): nothing to do
+    if (/^Unexpected state in \w+Handler/.test(String((e as Error)?.message ?? ''))) return;
+    throw e;
+  }
 }
 export default reportingLabs;
 
@@ -145,6 +184,8 @@ export class CypressCollector {
   private assetsReady = false;
   private base: string;
   private attempts = new Map<string, AttemptPayload[]>();
+  private ranBeforeRun = false;
+  private warnedReplaced = false;
 
   constructor(private options: ReportingLabsCypressOptions, private config: Record<string, unknown> = {}) {
     this.masker = makeMasker(options.maskKeys ?? [], { knownValues: options.maskValues ?? [], fromEnv: options.maskFromEnv !== false });
@@ -155,6 +196,13 @@ export class CypressCollector {
 
   addAttempt(p: AttemptPayload): void {
     if (!p || !Array.isArray(p.titlePath)) return;
+    // cypress run fires before:run first: without it, a later on('before:run') replaced ours (and so after:run too)
+    if (!this.ranBeforeRun && !this.warnedReplaced && this.config.isTextTerminal === true) {
+      this.warnedReplaced = true;
+      console.warn('\n  reporting-labs: our before:run handler was replaced, so no report will be written. Cypress keeps one handler\n' +
+        '  per event: call reportingLabs() last in setupNodeEvents (after addCucumberPreprocessorPlugin() and other plugins),\n' +
+        '  or call its handlers from yours (see the README).\n');
+    }
     const key = attemptKey(p.spec, p.titlePath);
     const list = this.attempts.get(key) ?? [];
     list[Math.max(0, Number(p.retry) || 0)] = p;
@@ -162,6 +210,7 @@ export class CypressCollector {
   }
 
   beforeRun(d: CyBeforeRun = {}): void {
+    this.ranBeforeRun = true;
     this.startTime = Date.now();
     this.browser = browserLabel(d.browser);
     this.cypressVersion = d.cypressVersion || '';
@@ -292,6 +341,8 @@ export class CypressCollector {
   /** What the support file sent for this test: real per-attempt times, steps, API calls, each attempt's error, meta(). */
   enrich(t: TestData, attempts: AttemptPayload[] | undefined, abs: string): void {
     if (!attempts || !attempts.length) return;
+    const g = [...attempts].reverse().find(a => a?.gherkin)?.gherkin;
+    if (g) this.applyGherkin(t, g, attempts, abs);
     t.results.forEach((r, i) => {
       const a = attempts[i];
       if (!a) return;
@@ -304,10 +355,19 @@ export class CypressCollector {
       if (r.status === 'failed' && !r.errors.length && a.err?.message) r.errors.push(this.toError([a.err.message, a.err.stack ? a.err.stack.replace(/^[^\n]*\n?/, '') : ''].filter(Boolean).join('\n'), abs));
       const cf = a.err?.codeFrame;
       const e = r.errors[0];
-      if (e && cf?.line && !e.location && abs) {
-        e.location = { file: this.rel(abs), line: cf.line, column: cf.column ?? 0 };
-        const snip = codeFrame(abs, cf.line, cf.column ?? 0);
-        if (snip) e.snippet = snip;
+      // the file Cypress points at: the spec, or a support / step definition file it calls into (not a library's code)
+      const src = cf?.relativeFile ? (/(^|[\\/])node_modules[\\/]/.test(cf.relativeFile) ? '' : path.resolve(this.base, cf.relativeFile)) : abs;
+      if (e && cf?.line && !e.location && src && fs.existsSync(src)) {
+        e.location = { file: this.rel(src), line: cf.line, column: cf.column ?? 0 };
+        const snip = codeFrame(src, cf.line, cf.column ?? 0);
+        if (snip) e.snippet = this.masker.maskStr(snip);
+      }
+      // Cucumber without a code frame: the step in the feature file
+      const at = a.gherkin?.stoppedAt;
+      if (e && !e.location && at?.line && abs) {
+        e.location = { file: this.rel(abs), line: at.line, column: 0 };
+        const snip = codeFrame(abs, at.line, 0);
+        if (snip) e.snippet = this.masker.maskStr(snip);
       }
     });
     t.duration = t.results.reduce((n, r) => n + r.duration, 0);
@@ -319,9 +379,51 @@ export class CypressCollector {
     }
   }
 
+  /** A Cucumber scenario: its feature file line, Rule, tags as tags and meta, Outline row and data tables. Runs before the
+   *  steps are masked: a password column in Examples or a data table teaches the masker its values. */
+  private applyGherkin(t: TestData, g: GherkinPayload, attempts: AttemptPayload[], abs: string): void {
+    const data: ResultData['data'] = [];
+    const table = (name: string, header: string[], rows: string[][]) => {
+      const sens = header.map(h => this.masker.isSensitive(h));
+      const masked = rows.map(r => r.map((c, i) => { if (sens[i]) { this.masker.learn(c); return '****'; } return c; }));
+      data.push({ name, kind: 'table', columns: header.map(h => this.masker.maskStr(h)), rows: masked.map(r => r.map(c => c === '****' ? c : this.masker.maskStr(c))) });
+    };
+    const ex = g.example;
+    if (ex && Array.isArray(ex.header) && Array.isArray(ex.values)) table('Examples', ex.header.map(String), [ex.values.map(String)]);
+    for (const a of g.args ?? []) {
+      const name = this.masker.maskStr(String(a.step ?? 'Step'));
+      if (Array.isArray(a.table) && a.table.length) {
+        const [head, ...rest] = a.table.map(r => (r ?? []).map(String));
+        if (rest.length) table(name, head, rest);
+        else data.push({ name, kind: 'table', columns: head.map(c => this.masker.maskStr(c)), rows: [] });
+      } else if (typeof a.docString === 'string') data.push({ name, kind: 'text', text: this.masker.maskStr(a.docString) });
+    }
+    if (data.length) for (const r of t.results) r.data.push(...data.map(d => ({ ...d })));
+
+    if (typeof g.line === 'number' && g.line > 0) t.line = g.line;
+    if (g.feature) t.path = [this.masker.maskStr(String(g.feature)), ...(g.rule ? ['Rule: ' + this.masker.maskStr(String(g.rule))] : [])];
+    if (ex && Array.isArray(ex.values) && ex.values.length) {
+      // like the Cucumber JVM plugin: the example's values instead of Cypress's "(example #2)"
+      const vals = ex.values.map(String).join(', ');
+      const base = t.title.replace(/\s*\(example #\d+\)$/, '');
+      t.title = this.masker.maskStr(`${base} (${vals.length > 60 ? vals.slice(0, 60) + '…' : vals})`);
+    }
+    const { meta, clean } = metaFromTags((g.tags ?? []).map(String), META_KEYS);
+    for (const [k, v] of Object.entries(meta)) if (!(k in t.meta)) t.meta[k] = this.masker.maskStr(v);
+    for (const tag of clean) if (!t.tags.includes(tag)) t.tags.push(tag);
+
+    const last = attempts[attempts.length - 1]?.gherkin?.stoppedAt;
+    if (t.outcome === 'skipped' && last?.state === 'pending' && last.step) {
+      t.note = `The step "${this.masker.maskStr(last.step)}" is pending: its step definition returned "pending".`;
+      t.annotations = t.annotations.filter(x => x.type !== 'skip');
+    }
+    void abs;
+  }
+
   private maskStep(st: StepData): StepData {
     return { title: this.masker.maskStr(String(st.title ?? '')), category: String(st.category ?? 'cy'), duration: Math.max(0, Math.round(Number(st.duration) || 0)),
-      ...(st.error ? { error: this.masker.maskStr(stripAnsi(String(st.error))) } : {}), steps: (st.steps ?? []).map(c => this.maskStep(c)) };
+      ...(st.error ? { error: this.masker.maskStr(stripAnsi(String(st.error))) } : {}), ...(st.status === 'skipped' ? { status: 'skipped' as const } : {}),
+      steps: (st.steps ?? []).map(c => this.maskStep(c)) };
   }
 
   /** displayError is the message plus a stack ("    at …"); the first frame in the spec file gives the location. */
@@ -334,14 +436,15 @@ export class CypressCollector {
     if (stack) d.stack = stack;
     const ex = explainError(message);
     if (ex) d.explain = ex;
-    if (abs) {
+    // a feature file runs as a bundle: its line numbers in the stack are the bundle's (the step comes from the support file)
+    if (abs && !/\.feature$/i.test(abs)) {
       const base = path.basename(abs).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const m = new RegExp(`${base}:(\\d+):(\\d+)`).exec(stack ?? clean);
       if (m) {
         const line = Number(m[1]), column = Number(m[2]);
         d.location = { file: this.rel(abs), line, column };
         const snip = codeFrame(abs, line, column);
-        if (snip) d.snippet = snip;
+        if (snip) d.snippet = this.masker.maskStr(snip);
       }
     }
     return d;
