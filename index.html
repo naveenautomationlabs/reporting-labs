@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>reportingLabs live demos</title>
+<style>
+  :root { --bg: #f5f7fb; --fg: #0b1f44; --muted: #5a6c8c; --card: #fff; --line: #d6e0f5; --accent: #1a56db; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #06142f; --fg: #e8eefc; --muted: #9fb0d0; --card: #0e2147; --line: #1f3566; --accent: #7fa8ff; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px; }
+  h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -.3px; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; }
+  .card h2 { font-size: 20px; margin: 0 0 6px; }
+  .card p { margin: 0 0 14px; color: var(--muted); }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 18px; font-size: 14px; }
+  .stats b { color: var(--fg); }
+  .links { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn { display: inline-block; padding: 10px 16px; border-radius: 9px; text-decoration: none; font-weight: 600; font-size: 14px; border: 1px solid var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); color: #fff; }
+  footer { margin-top: 28px; font-size: 14px; color: var(--muted); }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>reportingLabs live demos</h1>
+  <p class="sub">Real reports from real runs. Open them as your team would.</p>
+  <div class="card">
+    <h2>1200 Playwright tests</h2>
+    <p>A shop regression suite: data-driven API and UI tests and checkout combinations, run with 4 workers and 1 retry, reported by reportingLabs 0.6.18.</p>
+    <div class="stats">
+      <span><b>1200</b> tests</span><span><b>1174</b> passed</span><span><b>12</b> failed</span><span><b>2</b> flaky</span><span><b>12</b> skipped</span>
+      <span>HTML + JSON in <b>540 ms</b></span><span>PDF in <b>2.5 s</b></span>
+    </div>
+    <div class="links">
+      <a class="btn primary" href="demo/1200-tests/index.html">Open the report</a>
+      <a class="btn" href="demo/1200-tests/report.pdf">Open the PDF</a>
+    </div>
+  </div>
+  <footer>Free and open source. <a href="https://reportinglabs.dev">reportinglabs.dev</a> · <a href="https://www.npmjs.com/package/reporting-labs">npm</a></footer>
+</main>
+</body>
+</html>
