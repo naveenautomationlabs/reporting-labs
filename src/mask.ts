@@ -37,6 +37,8 @@ export interface MaskerOptions {
   fromEnv?: boolean;
 }
 
+const NOT_SECRET_ENV = new Set(['PWD', 'OLDPWD']);
+
 export function makeMasker(extraKeys: string[] = [], opts: MaskerOptions = {}) {
   const keys = [...DEFAULT_KEYS, ...extraKeys.map(k => k.toLowerCase())];
   const isSensitive = (k: string) => { const l = k.toLowerCase(); return keys.some(s => l === s || l.includes(s)); };
@@ -69,7 +71,9 @@ export function makeMasker(extraKeys: string[] = [], opts: MaskerOptions = {}) {
   if (opts.fromEnv !== false) {
     // PASSWORD=…, API_TOKEN=…, OAUTH_CLIENT_SECRET=… in the environment: the values a CI job injects are the
     // ones that end up in log lines. Short values are skipped so a plain word is not blanked everywhere.
-    try { for (const [k, v] of Object.entries(process.env)) if (isSensitive(k)) learn(v, 6); } catch { /* no env access */ }
+    // PWD / OLDPWD are the shell's current folder ("pwd" is also a password key): learning them would blank the
+    // project path in every stack trace and editor link
+    try { for (const [k, v] of Object.entries(process.env)) if (isSensitive(k) && !NOT_SECRET_ENV.has(k.toUpperCase())) learn(v, 6); } catch { /* no env access */ }
   }
 
   // Key names as they appear in free text: password, X-Api-Key, access_token, userPassword, "password", db.password...
@@ -95,6 +99,15 @@ export function makeMasker(extraKeys: string[] = [], opts: MaskerOptions = {}) {
   const MENTIONS_SECRET = new RegExp(`\\b(?:${SPOKEN_KEYS.join('|')})s?\\b`, 'i');
   const COMPARED = /\b(Expected|Received|Actual|expected|received|actual|got)(\s*[:=]\s*)(["'\u201c]?)([^"'\u201d\s]+)/g;
 
+  // In source code (error snippets) a key is followed by code, not by its value: `const token = await login()`,
+  // `password: user.password`, `apiKey = process.env.API_KEY`, `authorization: \`Bearer ${token}\``. Masking these
+  // would also teach the masker "await" and blank every `await` in the report.
+  const CODE_WORDS = new Set(['await', 'async', 'new', 'this', 'self', 'null', 'undefined', 'none', 'nil', 'true', 'false', 'function', 'return', 'typeof', 'require', 'import', 'yield', 'const', 'let', 'var']);
+  const isCodeRef = (v: string) => CODE_WORDS.has(v.toLowerCase())
+    || /^`?\$\{/.test(v)
+    || /^`?(Bearer|Basic|Digest|Token)$/i.test(v)
+    || /^(process\.env|import\.meta\.env|os\.environ|os\.getenv|System\.getenv|ENV)\b/.test(v);
+
   const maskStr = (input: string) => {
     let s = input;
     s = s.replace(CARD_NUMBER, m => luhn(m) ? '****' : m);
@@ -105,17 +118,20 @@ export function makeMasker(extraKeys: string[] = [], opts: MaskerOptions = {}) {
     s = s.replace(URL_USERINFO, (_m, a, value, b) => { learn(value); return `${a}****${b}`; });
     s = s.replace(CLI_USER, (_m, a, value) => { learn(value); return `${a}****`; });
     s = s.replace(CREDS_PAIR, (_m, a, b, value) => { learn(value); return `${a}${b}****`; });
-    s = s.replace(KV, (_m, q1, key, q2, sep, q3, value) => { learn(value); return `${q1}${key}${q2}${sep}${q3}****`; });
+    s = s.replace(KV, (m, q1, key, q2, sep, q3, value) => {
+      if (isCodeRef(value)) return m;   // `token = await login()`: code, not a secret (and never learn "await")
+      learn(value); return `${q1}${key}${q2}${sep}${q3}****`;
+    });
     s = s.replace(SPOKEN, (m, key, between, value) => {
       const word = value.toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (NOT_A_SECRET.has(word) || value.includes('*')) return m;
+      if (NOT_A_SECRET.has(word) || value.includes('*') || isCodeRef(value)) return m;
       const explicit = /\b(is|was|of|as)\b|['"]$|[:=]\s*$/.test(between);
       if (explicit || looksSecret(value)) { learn(value); return `${key}${between}****`; }
       return m;
     });
     s = s.replace(VALUE_THEN_KEY, (m, value, rest) => {
       const word = value.toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (NOT_A_SECRET.has(word) || value.includes('*') || !looksSecret(value)) return m;
+      if (NOT_A_SECRET.has(word) || value.includes('*') || isCodeRef(value) || !looksSecret(value)) return m;
       learn(value); return `****${rest}`;
     });
     if (MENTIONS_SECRET.test(s)) s = s.replace(COMPARED, (m, label, sep, q, value) => { if (!looksSecret(value)) return m; learn(value); return `${label}${sep}${q}****`; });
