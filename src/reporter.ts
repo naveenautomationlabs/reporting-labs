@@ -20,6 +20,23 @@ function isInternalAttach(s: TestStep): boolean {
   return s.category === 'test.attach' && /^Attach "(rl:log|(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) )/.test(s.title);
 }
 
+/** Playwright 1.63+ moved the target out of the title: title `Click`, subtitle `getByRole('button')`; title `Navigate`,
+ *  subtitle `/login`. Put it back next to the title, as the report showed before. A test.step's own subtitle and
+ *  params are shown too: `Open product · SKU 42 (id: 42, currency: USD)`. Older Playwright has no subtitle: unchanged. */
+function stepTitle(s: TestStep): string {
+  const x = s as TestStep & { subtitle?: string; params?: Record<string, unknown> };
+  let title = s.title;
+  const sub = typeof x.subtitle === 'string' ? x.subtitle.trim() : '';
+  if (s.category === 'test.step') {
+    if (sub) title += ` · ${sub}`;
+    const p = x.params && typeof x.params === 'object' ? Object.entries(x.params) : [];
+    if (p.length) title += ` (${p.map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`).join(', ')})`;
+  } else if (sub && !title.includes(sub)) {
+    title += ` ${sub}`;
+  }
+  return title;
+}
+
 /** Meta keys shown on every test and turned into links, without being breakdown dimensions. */
 const META_KEYS = ['priority', 'severity', 'feature', 'owner', 'epic', 'story', 'issue', 'bug', 'component', 'module', 'team', 'sprint', 'testcase', 'tms', 'requirement'];
 
@@ -162,7 +179,7 @@ export default class ReportingLabsReporter implements Reporter {
       history,
       bdd,
       rootDir: base,
-      env: this.collectEnv(base),
+      env: this.collectEnv(base, projects),
       runStatus: result.status,
       globalErrors: this.globalErrors,
       globalOutput: this.globalOutput,
@@ -282,7 +299,7 @@ export default class ReportingLabsReporter implements Reporter {
   }
 
   /** Runtime facts for the Environment card: Playwright, Node, OS, browsers, CI job, git commit. */
-  private collectEnv(base: string): EnvRow[] {
+  private collectEnv(base: string, ran: Set<string> = new Set()): EnvRow[] {
     const rows: EnvRow[] = [];
     const env = process.env;
     let pw = '';
@@ -290,7 +307,9 @@ export default class ReportingLabsReporter implements Reporter {
     if (pw) rows.push({ k: 'Playwright', v: pw });
     rows.push({ k: 'Node', v: process.version });
     rows.push({ k: 'OS', v: `${os.type()} ${os.release()} (${os.arch()})` });
-    const browsers = [...new Set(this.config.projects.map(p => { const u: any = p.use ?? {}; return [u.browserName, u.channel].filter(Boolean).join('/') || (u.defaultBrowserType ?? ''); }).filter(Boolean))];
+    // the projects that ran: not one left out by --project or by `default: false` (Playwright 1.64)
+    const ranProjects = this.config.projects.filter(p => !ran.size || ran.has(p.name));
+    const browsers = [...new Set(ranProjects.map(p => { const u: any = p.use ?? {}; return [u.browserName, u.channel].filter(Boolean).join('/') || (u.defaultBrowserType ?? ''); }).filter(Boolean))];
     if (browsers.length) rows.push({ k: 'Browsers', v: browsers.join(', ') });
     if (this.config.shard) rows.push({ k: 'Shard', v: `${this.config.shard.current} of ${this.config.shard.total}` });
     if (this.config.workers) rows.push({ k: 'Workers', v: String(this.config.workers) });
@@ -494,7 +513,7 @@ export default class ReportingLabsReporter implements Reporter {
 
   private serializeStep(s: TestStep): StepData {
     return {
-      title: this.masker.maskStr(s.title),
+      title: this.masker.maskStr(stepTitle(s)),
       category: s.category,
       duration: s.duration,
       error: s.error?.message ? this.masker.maskStr(stripAnsi(s.error.message)) : undefined,
@@ -599,7 +618,7 @@ export function gitInfo(cwd: string, env: NodeJS.ProcessEnv): { sha?: string; au
 }
 
 function extFor(ct: string) {
-  const m: Record<string, string> = { 'image/png': '.png', 'image/jpeg': '.jpg', 'video/webm': '.webm', 'video/mp4': '.mp4', 'application/zip': '.zip', 'application/pdf': '.pdf' };
+  const m: Record<string, string> = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'video/webm': '.webm', 'video/mp4': '.mp4', 'application/zip': '.zip', 'application/pdf': '.pdf' };
   return m[ct] ?? '';
 }
 function fmt(v: unknown): string {
