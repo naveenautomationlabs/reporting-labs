@@ -1,0 +1,6 @@
+node_modules/
+.features-gen/
+reporting-labs/
+reporting-labs.history.json
+test-results/
+playwright-report/

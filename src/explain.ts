@@ -65,6 +65,12 @@ export function explainError(raw: string): ErrorExplain | undefined {
   const action = pick(first, /^(?:Error: |TimeoutError: )?([a-zA-Z]+\.[a-zA-Z]+):/);
   const url = pick(msg, /(?:navigating to|at)\s+"?(https?:\/\/[^\s"]+)/);
 
+  // ── playwright-bdd: a step with no step definition, or with several ──────
+  const bddMissing = msg.match(/^(?:Error:\s*)?Missing step:\s*(.+)$/m);
+  if (bddMissing) return out('script', `The step "${short(bddMissing[1].trim(), 90)}" has no step definition.`, 'Add a Given / When / Then for it in your steps files (npx bddgen prints a snippet for it), or check the steps paths in defineBddConfig().', { label: 'Step not defined' });
+  const bddTwice = msg.match(/Multiple definitions matched scenario step\.\s*\n\s*Step:\s*(.+?)(?:\s+#\s|\n|$)/);
+  if (bddTwice) return out('script', `More than one step definition matches "${short(bddTwice[1].trim(), 90)}".`, 'Make the step texts or their expressions differ, so exactly one step definition matches.', { label: 'Step defined twice' });
+
   // ── Whole-test and hook timeouts ─────────────────────────────────────────
   let m = msg.match(/"(beforeAll|beforeEach|afterAll|afterEach)" hook timeout of (\d+)ms exceeded/);
   if (m) return out('hook-timeout', `The ${m[1]} hook took longer than ${secs(Number(m[2]))}.`, 'Look at what the hook does (login, seeding data, starting a server). Raise the hook timeout only if that work really needs more time.', { timeoutMs: Number(m[2]) });

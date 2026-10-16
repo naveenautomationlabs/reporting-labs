@@ -10,6 +10,7 @@ import { renderHtml } from './template';
 import { makeMasker, parseCsv } from './mask';
 import { explainError } from './explain';
 import { writeReportPdf } from './pdf';
+import { applyBdd } from './bdd';
 import { commentMetaAt, type CommentMeta } from './comments';
 import type { HistoryEntry, LinkTemplate } from './types';
 
@@ -127,7 +128,7 @@ export default class ReportingLabsReporter implements Reporter {
       const annotations = [...test.annotations, ...resultAnn.filter(a => !test.annotations.some(b => b.type === a.type && b.description === a.description))];
       const fromComments = this.commentMeta(test);
       const extracted = this.extractMeta(test, fromComments);
-      tests.push({
+      const t: TestData = {
         id: test.id,
         key: `${project}::${file}::${[...titlePath, test.title].join(' › ')}${test.repeatEachIndex ? ' #' + (test.repeatEachIndex + 1) : ''}`,
         title: test.title,
@@ -148,7 +149,12 @@ export default class ReportingLabsReporter implements Reporter {
         retries: test.retries,
         duration: results.reduce((a, r) => a + r.duration, 0),
         results,
-      });
+      };
+      // playwright-bdd: the scenario at its .feature file and line, Gherkin details from the generated spec
+      if (applyBdd(t, test.location.file, this.bddRoots(), f => this.rel(f), this.masker)) {
+        t.key = `${project}::${t.file}::${[...t.path, t.title].join(' › ')}${test.repeatEachIndex ? ' #' + (test.repeatEachIndex + 1) : ''}`;
+      }
+      tests.push(t);
     }
 
     const stats = { passed: 0, failed: 0, skipped: 0, flaky: 0, timedOut: 0, interrupted: 0, total: tests.length } as ReportData['stats'];
@@ -435,6 +441,10 @@ export default class ReportingLabsReporter implements Reporter {
     const type = mime[path.extname(file).toLowerCase()];
     if (!type) { console.warn(`reporting-labs: logo ${logo} is not a png, jpg, svg, gif or webp file`); return undefined; }
     return `data:${type};base64,${fs.readFileSync(file).toString('base64')}`;
+  }
+
+  private bddRoots(): string[] {
+    return [...new Set([this.config.configFile ? path.dirname(this.config.configFile) : '', this.config.rootDir, process.cwd()].filter(Boolean))];
   }
 
   private rel(file: string): string {

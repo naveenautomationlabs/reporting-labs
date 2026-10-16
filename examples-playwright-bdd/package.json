@@ -1,0 +1,13 @@
+{
+  "name": "reporting-labs-playwright-bdd-example",
+  "private": true,
+  "description": "reportingLabs with Playwright and Cucumber feature files (playwright-bdd): a tiny local app, two feature files, one command",
+  "scripts": {
+    "test": "bddgen && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "playwright-bdd": "^9.0.0",
+    "reporting-labs": "^0.6.20"
+  }
+}
