@@ -102,11 +102,14 @@ export function makeMasker(extraKeys: string[] = [], opts: MaskerOptions = {}) {
   // In source code (error snippets) a key is followed by code, not by its value: `const token = await login()`,
   // `password: user.password`, `apiKey = process.env.API_KEY`, `authorization: \`Bearer ${token}\``. Masking these
   // would also teach the masker "await" and blank every `await` in the report.
-  const CODE_WORDS = new Set(['await', 'async', 'new', 'this', 'self', 'null', 'undefined', 'none', 'nil', 'true', 'false', 'function', 'return', 'typeof', 'require', 'import', 'yield', 'const', 'let', 'var']);
-  const isCodeRef = (v: string) => CODE_WORDS.has(v.toLowerCase())
+  const CODE_WORDS = new Set(['await', 'async', 'new', 'this', 'self', 'null', 'undefined', 'none', 'nil', 'true', 'false', 'function', 'return', 'typeof', 'require', 'import', 'yield', 'const', 'let', 'var',
+    // type names: `password: string`, `token: str`, `pin: int`
+    'string', 'number', 'boolean', 'bigint', 'any', 'unknown', 'object', 'void', 'never', 'symbol', 'str', 'int', 'float', 'bool', 'bytes', 'dict', 'list']);
+  const isCodeRef = (raw: string) => { const v = raw.replace(/[)\]},;:.]+$/, ''); return CODE_WORDS.has(v.toLowerCase())
     || /^`?\$\{/.test(v)
+    || /^\{\w+\}$/.test(v)                       // a Cucumber expression parameter: password {string}
     || /^`?(Bearer|Basic|Digest|Token)$/i.test(v)
-    || /^(process\.env|import\.meta\.env|os\.environ|os\.getenv|System\.getenv|ENV)\b/.test(v);
+    || /^(process\.env|import\.meta\.env|os\.environ|os\.getenv|System\.getenv|ENV)\b/.test(v); };
 
   const maskStr = (input: string) => {
     let s = input;
