@@ -259,7 +259,39 @@ open reporting-labs/index.html
 
 Run it two or three times to see the history features (new vs known failures, flaky dots, got slower, trend).
 
+For Cucumber feature files on Playwright, [`examples-playwright-bdd/`](https://github.com/naveenautomationlabs/reporting-labs/tree/main/examples-playwright-bdd) runs [playwright-bdd](https://github.com/vitalets/playwright-bdd) against a tiny offline shop app: `cd examples-playwright-bdd && npm install && npm test`.
+
 For Cypress, [`examples-cypress/`](https://github.com/naveenautomationlabs/reporting-labs/tree/main/examples-cypress) is a tiny offline shop app with a few specs (steps, API calls, a flaky test, a failing hook): `cd examples-cypress && npm install && npx cypress run`. With Cucumber: [`examples-cypress-cucumber/`](https://github.com/naveenautomationlabs/reporting-labs/tree/main/examples-cypress-cucumber), the same app with feature files.
+
+### Playwright with Cucumber (playwright-bdd)
+
+[playwright-bdd](https://github.com/vitalets/playwright-bdd) runs `.feature` files on the Playwright test runner, so
+`playwright.config.ts`, fixtures, projects, retries and sharding all stay. Add the reporter as usual; nothing else to
+set up:
+
+```ts
+// playwright.config.ts
+import 'reporting-labs/auto';
+import { defineConfig } from '@playwright/test';
+import { defineBddConfig } from 'playwright-bdd';
+
+const testDir = defineBddConfig({ features: 'features/**/*.feature', steps: 'steps/**/*.ts' });
+
+export default defineConfig({
+  testDir,
+  reporter: [['list'], ['reporting-labs', { title: 'Checkout regression' }]],
+});
+```
+
+Run `npx bddgen && npx playwright test`. Each scenario is a report row:
+- **At its line in the `.feature` file**, under its Feature and Rule, with a Scenario badge (not the generated `.features-gen` spec).
+- **Given / When / Then steps** with the Playwright calls each one made; Background steps next to the scenario's own; the steps a failure left unrun greyed out.
+- **Scenario Outline rows** named after their values, with the row as an Examples table; data tables and doc strings as test data. A password column is masked.
+- **Tags:** `@P0`–`@P4` set the priority, `@blocker` / `@critical` / `@major` / `@minor` / `@trivial` the severity, `@owner:asha` / `@story:SHOP-12` / `@feature:…` any meta; anything else is a tag.
+- **Errors:** the step definition line, or the step in the feature file; "Step not defined" for `Missing step`, "Step defined twice".
+
+playwright-bdd 8 and 9 give all of it. With playwright-bdd 7 the scenario's location, Feature / Rule and Outline rows
+are right; data tables and the steps left unrun need 8+.
 
 ## A tour of the report
 
@@ -347,7 +379,7 @@ Every outcome Playwright can produce, not just pass and fail:
 | Single HTML file, opens without a server | ❌<br><sub>a folder, served by `show-report`</sub> | 🟡<br><sub>single-file mode (2.24+, Allure 3)</sub> | ✅ |
 | Nothing extra to install | ✅ | ❌<br><sub>Allure CLI; Allure 2 needs Java</sub> | ✅<br><sub>one package</sub> |
 | Setup | ✅<br><sub>built in</sub> | 🟡<br><sub>reporter + generate step</sub> | ✅<br><sub>one line</sub> |
-| Frameworks | ❌<br><sub>Playwright only</sub> | ✅<br><sub>many languages</sub> | ✅<br><sub>Playwright, Cypress (+ Cucumber), WebdriverIO, pytest, pytest-bdd, Robot, JUnit 5, TestNG, Cucumber</sub> |
+| Frameworks | ❌<br><sub>Playwright only</sub> | ✅<br><sub>many languages</sub> | ✅<br><sub>Playwright (+ BDD), Cypress (+ Cucumber), WebdriverIO, pytest, pytest-bdd, Robot, JUnit 5, TestNG, Cucumber</sub> |
 | **Each test** | | | |
 | Steps, screenshots, videos, traces | ✅ | ✅ | ✅ |
 | Logs and test data | 🟡<br><sub>as attachments</sub> | 🟡<br><sub>attachments, parameters</sub> | ✅<br><sub>`log()`, `testData()`</sub> |
