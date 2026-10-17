@@ -48,6 +48,8 @@ export interface RunInfo {
   workers: number;
   /** Rows shown first on the Environment card, e.g. the Cypress version and browser. */
   envRows?: EnvRow[];
+  /** How the runner's re-run command is put together (each test carries its own target in TestData.rerun). */
+  rerun?: ReportData['rerun'];
 }
 
 /** Writes the report into options.outputFolder (default reporting-labs) and returns the HTML path. */
@@ -97,6 +99,7 @@ export async function writeReport(tests: TestData[], run: RunInfo, options: Writ
     runStatus,
     globalErrors: [],
     globalOutput: [],
+    rerun: run.rerun,
     options: {
       logo: options.logo,
       accent: options.accent,
@@ -104,7 +107,7 @@ export async function writeReport(tests: TestData[], run: RunInfo, options: Writ
       palette: options.palette ?? 'lab',
       embedFonts: options.embedFonts ?? true,
       sections: options.sections ?? [],
-      widgets: { runStrip: true, outcome: true, attention: true, dimensions: true, timeline: true, durations: true, tags: true, slowest: true, projects: true, flaky: true, environment: true, skipped: true },
+      widgets: { runStrip: true, outcome: true, attention: true, dimensions: true, timeline: true, durations: true, tags: true, slowest: true, projects: true, flaky: true, environment: true, skipped: true, changes: true },
       dimensions: dims,
       dimensionOrder: {
         priority: ['P0', 'P1', 'P2', 'P3', 'P4'],

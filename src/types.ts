@@ -56,6 +56,8 @@ export interface ReportingLabsOptions {
     environment?: boolean;
     /** Skipped tests with their reasons. Default: true */
     skipped?: boolean;
+    /** The "Since last run" line under the cards (new failures, fixed, still failing, got slower, new tests) with the command to re-run the failed tests. Default: true */
+    changes?: boolean;
   };
   /**
    * Annotation/tag keys treated as chart dimensions (priority, severity, owner...).
@@ -242,6 +244,8 @@ export interface TestData {
   timeout?: number;
   retries?: number;
   column?: number;
+  /** What runs this test again: its target (a file:line, a spec), then options it needs. See ReportData.rerun. */
+  rerun?: string[];
 }
 
 export interface ReportData {
@@ -266,6 +270,8 @@ export interface ReportData {
   /** Console output that was not attributed to a test. */
   globalOutput: { stream: 'out' | 'err'; text: string }[];
   shard?: { current: number; total: number };
+  /** How a re-run command is put together: pre + the tests' targets joined with sep + post, then their options. */
+  rerun?: { pre: string; sep: string; post?: string };
   /** Set by `reporting-labs merge`: one lane name per worker (S1·w0, S1·w1, S2·w0 ...) and each shard's size and timing. */
   workerLabels?: string[];
   shardInfo?: Array<{ shard: number; workers: number; startTime: number; duration: number }>;

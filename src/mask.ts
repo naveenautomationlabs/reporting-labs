@@ -107,7 +107,7 @@ export function makeMasker(extraKeys: string[] = [], opts: MaskerOptions = {}) {
     'string', 'number', 'boolean', 'bigint', 'any', 'unknown', 'object', 'void', 'never', 'symbol', 'str', 'int', 'float', 'bool', 'bytes', 'dict', 'list']);
   const isCodeRef = (raw: string) => { const v = raw.replace(/[)\]},;:.]+$/, ''); return CODE_WORDS.has(v.toLowerCase())
     || /^`?\$\{/.test(v)
-    || /^\{\w+\}$/.test(v)                       // a Cucumber expression parameter: password {string}
+    || /^\{(?:[a-z_][A-Za-z_]*)?\}?$/.test(v)     // a placeholder: password {string}, password={password}, password={}
     || /^`?(Bearer|Basic|Digest|Token)$/i.test(v)
     || /^(process\.env|import\.meta\.env|os\.environ|os\.getenv|System\.getenv|ENV)\b/.test(v); };
 

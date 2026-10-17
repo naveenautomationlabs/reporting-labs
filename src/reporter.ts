@@ -112,6 +112,7 @@ export default class ReportingLabsReporter implements Reporter {
     const tests: TestData[] = [];
     const projects = new Set<string>();
     let workers = 0;
+    let bddSpecs = false;
 
     for (const test of this.suite.allTests()) {
       const project = test.parent.project()?.name ?? '';
@@ -149,9 +150,11 @@ export default class ReportingLabsReporter implements Reporter {
         retries: test.retries,
         duration: results.reduce((a, r) => a + r.duration, 0),
         results,
+        rerun: this.rerunTarget(test.location.file, test.location.line, project),
       };
       // playwright-bdd: the scenario at its .feature file and line, Gherkin details from the generated spec
       if (applyBdd(t, test.location.file, this.bddRoots(), f => this.rel(f), this.masker)) {
+        bddSpecs = true;
         t.key = `${project}::${t.file}::${[...t.path, t.title].join(' › ')}${test.repeatEachIndex ? ' #' + (test.repeatEachIndex + 1) : ''}`;
       }
       tests.push(t);
@@ -190,6 +193,7 @@ export default class ReportingLabsReporter implements Reporter {
       globalErrors: this.globalErrors,
       globalOutput: this.globalOutput,
       shard: this.config.shard ? { current: this.config.shard.current, total: this.config.shard.total } : undefined,
+      rerun: this.rerunShape(bddSpecs),
       options: {
         logo: this.resolveLogo(this.options.logo),
         accent: this.options.accent,
@@ -210,6 +214,7 @@ export default class ReportingLabsReporter implements Reporter {
           flaky: this.options.widgets?.flaky ?? true,
           environment: this.options.widgets?.environment ?? true,
           skipped: this.options.widgets?.skipped ?? true,
+          changes: this.options.widgets?.changes ?? true,
         },
         dimensions: this.dimensions(),
         dimensionOrder: {
@@ -443,6 +448,23 @@ export default class ReportingLabsReporter implements Reporter {
     return `data:${type};base64,${fs.readFileSync(file).toString('base64')}`;
   }
 
+  /** A test's re-run target: its spec file and line from where the command runs (the working folder), and its
+   *  project when the config has more than one. A playwright-bdd scenario is its generated spec. */
+  private rerunTarget(file: string, line: number, project: string): string[] {
+    const out = [shellArg(path.relative(process.cwd(), file).split(path.sep).join('/') + ':' + line)];
+    if (this.config.projects.length > 1 && project) out.push('--project=' + shellArg(project));
+    return out;
+  }
+
+  /** `npx playwright test`, with -c when the config is not the one Playwright finds on its own, and `npx bddgen &&`
+   *  first for playwright-bdd (the generated specs are rebuilt from the feature files). */
+  private rerunShape(bdd: boolean): ReportData['rerun'] {
+    const cfg = this.config.configFile;
+    const own = cfg && (path.dirname(cfg) !== process.cwd() || !/^playwright\.config\.[mc]?[jt]s$/.test(path.basename(cfg)));
+    const c = own ? ' -c ' + shellArg(path.relative(process.cwd(), cfg!).split(path.sep).join('/')) : '';
+    return { pre: (bdd ? 'npx bddgen && ' : '') + 'npx playwright test' + c + ' ', sep: ' ' };
+  }
+
   private bddRoots(): string[] {
     return [...new Set([this.config.configFile ? path.dirname(this.config.configFile) : '', this.config.rootDir, process.cwd()].filter(Boolean))];
   }
@@ -567,6 +589,11 @@ export default class ReportingLabsReporter implements Reporter {
     }
     return null;
   }
+}
+
+/** Quotes a command-line argument when it needs it (spaces, quotes, shell characters). */
+export function shellArg(s: string): string {
+  return /^[\w@%+=:,./-]+$/.test(s) ? s : '"' + s.replace(/(["\\$`])/g, '\\$1') + '"';
 }
 
 /** Run number from the CI system, used to label history entries when metadata.build is not set. */
