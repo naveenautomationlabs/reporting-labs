@@ -298,6 +298,7 @@ are right; data tables and the steps left unrun need 8+.
 ### Overview: the whole run on one screen
 
 - **Tiles**: pass rate with a ring and the change from the last run, then passed / failed / flaky / skipped. Click a tile to see those tests.
+- **Since last run**: one line under the tiles with what changed against the previous run: new failures, fixed, still failing, got slower, new tests. Click a number to see those tests. **Copy re-run command** on the same line copies one command for every failed test.
 - **Run strip**: every test as one small cell, in run order. Hover for the name, click to open.
 - **Needs attention**: failures sorted by priority and severity, with the spec file, the owner, and whether the failure is new or has been failing for a while.
 - **Failure clusters**: failures grouped by error message. 30 red tests with one cause read as one problem.
@@ -311,6 +312,7 @@ are right; data tables and the steps left unrun need 8+.
 ### Failures: everything you need to triage
 
 - **Bug report** button on every failed test: a ready-to-paste ticket with priority, owner, story, environment, test data, steps to reproduce (taken from the test's own steps, the failing one marked), expected vs actual, the error, API calls and attachment names. Pick Markdown, Jira or plain text, edit if you like, copy or download.
+- **Run again**: every test shows the command that runs just that test, with a Copy button, e.g. `npx playwright test tests/checkout.spec.ts:12 --project=chromium`. **Copy re-run command** on the Failures tab does the same for all failed tests at once. With playwright-bdd it runs `npx bddgen` first; Cypress and WebdriverIO re-run the spec file (`--spec`).
 - **By owner**: who to ping, with failed and flaky counts. Click an owner to filter.
 - **Download CSV / JSON**: all failed and flaky tests with title, spec, project, priority, owner, ticket, attempts, duration, first error line and new/known status. Ready for Jira or a sheet.
 - **Copy summary**: a Slack or Teams message with the top failures, owners and ticket keys.
@@ -341,6 +343,7 @@ The reporter keeps a small file, `reporting-labs.history.json`, next to your con
 | Did this break just now, or has it been red for days? | `new this run` or `failing since #1838` on every failure |
 | Which tests are flaky? | Last-10-runs dots on every failure, plus the Flakiest tests card |
 | What got slower? | Got slower tab on the Slowest card |
+| What changed since the last run? | The Since last run line: new failures, fixed, still failing, got slower, new tests |
 | Are we getting better or worse? | Trend chart with pass rate, fail rate and duration per run |
 
 The first run has nothing to compare with. These cards fill in from the second run.

@@ -35,7 +35,7 @@ import { makeMasker } from '../mask';
 import { explainError } from '../explain';
 import { commentMetaAt, lineOfTitle } from '../comments';
 import { metaFromTags, META_KEYS } from '../wdio/reporter';
-import { detectEnvName } from '../reporter';
+import { detectEnvName, shellArg } from '../reporter';
 import type { TestData, ResultData, ErrorData, AttachmentData, Status, StepData, ApiCall } from '../types';
 
 export interface ReportingLabsCypressOptions extends WriteReportOptions {
@@ -270,6 +270,8 @@ export class CypressCollector {
     for (const t of this.tests) {
       t.project = project;
       t.key = `${project}::${t.file}::${[...t.path, t.title].join(' › ')}`;
+      // Cypress runs a spec, not one test of it: the re-run target is the spec file
+      if (t.file) t.rerun = [t.file];
     }
     const start = Date.parse(results.startedTestsAt ?? '') || this.startTime || Date.now();
     const end = Date.parse(results.endedTestsAt ?? '') || this.endTime || Date.now();
@@ -277,8 +279,20 @@ export class CypressCollector {
     const version = this.cypressVersion || results.cypressVersion || '';
     const bver = results.browserVersion ? ` ${results.browserVersion}` : '';
     const envRows = version ? [{ k: 'Cypress', v: version + (project ? ` · ${project}${bver}` : '') }] : [];
-    return writeReport(this.tests, { startTime: start, endTime: Math.max(end, start), runStatus: failed ? 'failed' : 'passed', workers: 1, envRows },
+    return writeReport(this.tests, { startTime: start, endTime: Math.max(end, start), runStatus: failed ? 'failed' : 'passed', workers: 1, envRows, rerun: this.rerunShape(project) },
       { ...this.options, outputFolder: this.outDir, logo: this.resolveLogo(this.options.logo), bdd: this.options.bdd });
+  }
+
+  /** `npx cypress run --spec "a.cy.ts,b.cy.ts"` from the project folder, with the browser (when not the default
+   *  Electron) and the config file (when not one Cypress finds on its own). */
+  private rerunShape(browser: string): { pre: string; sep: string; post: string } {
+    let pre = 'npx cypress run';
+    const cfg = typeof this.config.configFile === 'string' ? this.config.configFile : '';
+    if (cfg && (path.dirname(path.resolve(this.base, cfg)) !== this.base || !/^cypress\.config\.[mc]?[jt]s$/.test(path.basename(cfg)))) {
+      pre += ' --config-file ' + shellArg(path.relative(this.base, path.resolve(this.base, cfg)).split(path.sep).join('/'));
+    }
+    if (browser && browser !== 'electron') pre += ' --browser ' + shellArg(browser);
+    return { pre: pre + ' --spec "', sep: ',', post: '"' };
   }
 
   /** One Cypress test → one report row. Cypress gives the attempts' states but one duration and one error (the last). */
