@@ -448,7 +448,7 @@ Every option is optional. `npx reporting-labs init` writes them all, with commen
 | `jsonFile` | `'report.json'` | File name of the JSON blob |
 | `pdf` | `true` | Also write `report.pdf` (light theme, print-ready), printed by Playwright's Chromium or an installed Chrome / Edge, whatever browser the tests ran on. `false` turns it off; `{ file: 'run.pdf' }` renames it; `{ chromePath }` (or `CHROME_PATH`) names the browser. The Export PDF button in the report works either way |
 | `embedFonts` | `true` | Bundle the fonts (~140 KB) so it looks the same offline |
-| `announce` | `true` | Print the report path after the run |
+| `announce` | `true` | Print the report path after the run. On a developer's machine (never in CI) it also asks for a GitHub star, at most once a week; `REPORTING_LABS_NO_STAR=1` turns only that off |
 | `open` | `'on-failure'` | Open the report in the browser after the run: `'on-failure'`, `'always'` or `'never'`. Never opens in CI |
 | `commentMeta` | `true` | Also read meta from the comment above a test or `describe` (`/** @priority P0 @owner naveen */`). `meta()` wins when both are there. `false` reads no comments |
 | `warnMissingMeta` | `true` | After the run, list the tests that have no meta (no `meta()` and no comment) in the console, so nobody on the team forgets |
