@@ -9,6 +9,7 @@ import { makeMasker } from './mask';
 import { writeReportPdf } from './pdf';
 import type { ReportData, TestData, HistoryEntry, Status, EnvRow } from './types';
 import { collectEnv, ciRunLabel } from './wdio/env';
+import { starLine } from './star';
 
 export interface WriteReportOptions {
   outputFolder?: string;
@@ -131,7 +132,7 @@ export async function writeReport(tests: TestData[], run: RunInfo, options: Writ
     console.log(`\n  reporting-labs: report written to ${path.relative(process.cwd(), htmlFile)}`);
   }
   if (options.pdf !== false) await writePdf(htmlFile, outputFolder, options);
-  if (options.announce !== false) console.log('');
+  if (options.announce !== false) { const star = starLine(); if (star) console.log(star); console.log(''); }
   return htmlFile;
 }
 

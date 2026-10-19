@@ -11,6 +11,7 @@ import { makeMasker, parseCsv } from './mask';
 import { explainError } from './explain';
 import { writeReportPdf } from './pdf';
 import { applyBdd } from './bdd';
+import { starLine } from './star';
 import { commentMetaAt, type CommentMeta } from './comments';
 import type { HistoryEntry, LinkTemplate } from './types';
 
@@ -243,6 +244,7 @@ export default class ReportingLabsReporter implements Reporter {
       console.log('');
     }
     if (this.options.pdf !== false) await this.writePdf(file);
+    if (this.options.announce !== false) { const star = starLine(); if (star) console.log(star + '\n'); }
     this.maybeOpen(file, result);
   }
 
