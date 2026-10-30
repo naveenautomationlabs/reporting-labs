@@ -1,0 +1,31 @@
+# Once a day: the total npm downloads for the README badge, written to the gh-pages branch
+# (served at https://naveenautomationlabs.github.io/reporting-labs/badges/npm-downloads.json).
+name: Download badge
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: download-badge
+
+jobs:
+  badge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { ref: gh-pages, path: pages }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node .github/scripts/npm-downloads-badge.mjs reporting-labs pages/badges/npm-downloads.json
+      - name: Commit when the number changed
+        working-directory: pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add badges/npm-downloads.json
+          git diff --cached --quiet || { git commit -m "npm downloads badge: $(date -u +%F)" && git push; }
