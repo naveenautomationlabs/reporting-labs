@@ -2,6 +2,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/reporting-labs"><img src="https://img.shields.io/npm/v/reporting-labs.svg?label=npm" alt="npm"></a>
+  <a href="https://npm-stat.com/charts.html?package=reporting-labs&from=2026-09-18"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fnaveenautomationlabs.github.io%2Freporting-labs%2Fbadges%2Fnpm-downloads.json" alt="npm downloads"></a>
   <a href="https://reportinglabs.dev"><img src="https://img.shields.io/badge/docs-reportinglabs.dev-1A56DB.svg" alt="Docs"></a>
   <a href="https://reportinglabs.dev/support"><img src="https://img.shields.io/badge/%E2%99%A5%20Support-reportingLabs-E5405E?style=flat" alt="Support reportingLabs"></a>
 </p>
