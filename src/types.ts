@@ -200,6 +200,8 @@ export interface AttachmentData {
   text?: string;
   /** bytes on disk, when known */
   size?: number;
+  /** A video's first frame (ms since epoch), when the runner knows it: lines the video up with the steps. */
+  videoStart?: number;
 }
 
 export interface ResultData {

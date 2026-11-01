@@ -1855,8 +1855,9 @@ function renderDetail(t, d, retryIdx){
     const near=fail!=null? (r.browser||[]).filter(e=>e.t<=fail&&fail-e.t<=5000).length : 0;
     if(near&&bsec) body.append(h('button',{class:'bev-jump',type:'button',onclick:()=>bsec.scrollIntoView({block:'start',behavior:'smooth'})}, 'The browser reported '+near+' problem'+(near>1?'s':'')+' in the 5 seconds before this failure. See what the browser saw ↓')); }
   if(bsec&&failedRun) body.append(bsec);
-  // Playwright's video starts when the page is created: steps can play it from their own moment
-  const allVids=r.attachments.filter(a=>a.src&&a.contentType.startsWith('video/')), v0=allVids.length? videoStart(r.steps) : null;
+  // the video's first frame on the wall clock: given by the runner (Java, Python: page closed minus the video's
+  // length), or for Playwright on Node.js the moment the page was created. Steps can then play it from their own moment.
+  const allVids=r.attachments.filter(a=>a.src&&a.contentType.startsWith('video/')), v0=allVids.length? (allVids[0].videoStart||videoStart(r.steps)) : null;
   let sync=null;
   if(v0!=null){
     const figs=allVids.map(videoFigure), v=figs[0].v, tree=()=>body.querySelectorAll('.step[data-s]');
