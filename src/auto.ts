@@ -8,6 +8,10 @@
  * URL, status, timing, headers and both bodies. No wrapper, no custom `test` import.
  * The reporter masks Authorization/Cookie headers, tokens and secret-looking fields.
  *
+ * It also listens to the browser while a test runs and records what the app did wrong: uncaught
+ * JavaScript errors, console.error messages and failed network requests (no response, or a 4xx/5xx),
+ * each with its time, so the report can show what happened right before a failure.
+ *
  * Playwright loads the config in every worker, so the patch runs where the tests run.
  */
 import type { ApiCall } from './types';
@@ -25,7 +29,7 @@ function pw(): AnyRecord {
   return require('@playwright/test');
 }
 
-function currentTest(): { attach(name: string, o: { body: string; contentType: string }): Promise<void> } | undefined {
+function currentTest(): { testId: string; retry: number; attach(name: string, o: { body: string; contentType: string }): Promise<void> } | undefined {
   try { return pw().test.info(); } catch { return undefined; }
 }
 
@@ -111,6 +115,53 @@ function patchContext(ctx: ContextLike) {
   proto[PATCHED] = true;
 }
 
+/* ---------- what the browser saw ---------- */
+const WATCHED = '__reportingLabsBrowserEvents';
+const MAX_EVENTS = 50;                      // per test attempt: a page that logs an error every frame stays readable
+const seen = new Map<string, number>();
+const oneLine = (s: unknown, max = 2000) => String(s ?? '').replace(/\u001b\[[0-9;]*m/g, '').slice(0, max);
+
+/** One browser event, attached to the running test with its time. Nothing while no test runs. */
+function note(ev: { kind: 'error' | 'console' | 'request'; text: string; url?: string; method?: string; status?: number; stack?: string }) {
+  const info = currentTest();
+  if (!info) return;
+  const key = info.testId + ':' + info.retry;
+  const n = (seen.get(key) ?? 0) + 1;
+  seen.set(key, n);
+  if (n > MAX_EVENTS) return;
+  info.attach('rl:browser', { body: JSON.stringify({ t: Date.now(), ...ev }), contentType: 'application/x-rl-browser' }).catch(() => { /* test already finished */ });
+}
+
+/** Listen to a browser context: uncaught page errors, console.error, and requests that failed or got 4xx/5xx. */
+function watchContext(ctx: AnyRecord) {
+  if (!ctx || typeof ctx.on !== 'function' || ctx[WATCHED]) return;
+  ctx[WATCHED] = true;
+  const onPage = (page: AnyRecord) => {
+    page.on('pageerror', (err: Error) => note({ kind: 'error', text: oneLine(err?.message || err), stack: oneLine(err?.stack, 4000), url: safe(() => page.url()) }));
+    page.on('console', (msg: AnyRecord) => {
+      if (msg.type() !== 'error') return;
+      // the browser's own note for a request that got 4xx/5xx: the request is already listed
+      if (/^Failed to load resource\b/.test(String(msg.text()))) return;
+      const loc = safe(() => msg.location()) as AnyRecord | undefined;
+      note({ kind: 'console', text: oneLine(msg.text()), url: loc?.url ? `${loc.url}${loc.lineNumber ? ':' + loc.lineNumber : ''}` : undefined });
+    });
+  };
+  try { for (const p of ctx.pages()) onPage(p); } catch { /* no pages yet */ }
+  ctx.on('page', onPage);
+  ctx.on('requestfailed', (req: AnyRecord) => {
+    const why = safe(() => req.failure()?.errorText) as string | undefined;
+    if (why && /ERR_ABORTED|NS_BINDING_ABORTED|cancelled/i.test(why)) return;   // navigating away, not an app problem
+    note({ kind: 'request', method: req.method(), url: req.url(), text: why || 'Request failed' });
+  });
+  ctx.on('response', (res: AnyRecord) => {
+    const status = res.status();
+    if (status < 400 || /\/favicon\.ico(\?|$)/.test(res.url())) return;
+    note({ kind: 'request', method: safe(() => res.request().method()) as string, url: res.url(), status, text: safe(() => res.statusText()) as string || '' });
+  });
+}
+
+function safe<T>(fn: () => T): T | undefined { try { return fn(); } catch { return undefined; } }
+
 /** Wrap `obj[name]` (found on the prototype chain) so `after(result)` sees each resolved return value. */
 function wrapAsync(obj: AnyRecord, name: string, after: (result: any) => void) {
   let proto: AnyRecord | null = obj;
@@ -144,15 +195,15 @@ function install() {
   if (request && typeof request.newContext === 'function') wrapAsync(request, 'newContext', ctx => patchContext(ctx));
   const onBrowser = (browser: AnyRecord) => {
     if (!browser || typeof browser.newContext !== 'function') return;
-    wrapAsync(browser, 'newContext', ctx => ctx?.request && patchContext(ctx.request));
-    try { for (const ctx of browser.contexts()) if (ctx?.request) patchContext(ctx.request); } catch { /* not a browser */ }
+    wrapAsync(browser, 'newContext', ctx => { if (ctx?.request) patchContext(ctx.request); watchContext(ctx); });
+    try { for (const ctx of browser.contexts()) { if (ctx?.request) patchContext(ctx.request); watchContext(ctx); } } catch { /* not a browser */ }
   };
   for (const bt of [chromium, firefox, webkit]) {
     if (!bt) continue;
     wrapAsync(bt, 'launch', onBrowser);
     wrapAsync(bt, 'connect', onBrowser);
     wrapAsync(bt, 'connectOverCDP', onBrowser);
-    wrapAsync(bt, 'launchPersistentContext', ctx => ctx?.request && patchContext(ctx.request));
+    wrapAsync(bt, 'launchPersistentContext', ctx => { if (ctx?.request) patchContext(ctx.request); watchContext(ctx); });
   }
 }
 

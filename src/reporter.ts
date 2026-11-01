@@ -13,13 +13,13 @@ import { writeReportPdf } from './pdf';
 import { applyBdd } from './bdd';
 import { starLine } from './star';
 import { commentMetaAt, type CommentMeta } from './comments';
-import type { HistoryEntry, LinkTemplate } from './types';
+import type { HistoryEntry, LinkTemplate, BrowserEvent } from './types';
 
 const DEFAULT_EMBED_LIMIT = 2 * 1024 * 1024;
 
 /** Attach steps created by log() and the automatic API capture; the data shows in its own section, so hide the step. */
 function isInternalAttach(s: TestStep): boolean {
-  return s.category === 'test.attach' && /^Attach "(rl:log|(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) )/.test(s.title);
+  return s.category === 'test.attach' && /^Attach "(rl:log|rl:browser|(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) )/.test(s.title);
 }
 
 /** Playwright 1.63+ moved the target out of the title: title `Click`, subtitle `getByRole('button')`; title `Navigate`,
@@ -515,12 +515,13 @@ export default class ReportingLabsReporter implements Reporter {
   }
 
   private serializeResult(r: TestResult, test: TestCase): ResultData {
-    const logs: ResultData['logs'] = [], data: ResultData['data'] = [], api: ResultData['api'] = [];
+    const logs: ResultData['logs'] = [], data: ResultData['data'] = [], api: ResultData['api'] = [], browser: BrowserEvent[] = [];
     const normal: TestResult['attachments'] = [];
     for (const a of r.attachments) {
       const body = a.body ?? (a.path && fs.existsSync(a.path) ? fs.readFileSync(a.path) : undefined);
       if (a.contentType === 'application/x-rl-log' && body) { try { const l = JSON.parse(body.toString()); logs.push({ t: l.t, msg: this.masker.maskStr(String(l.msg)) }); } catch { /* ignore */ } continue; }
       if (a.contentType === 'application/x-rl-api' && body) { try { api.push(this.masker.mask(JSON.parse(body.toString())) as any); } catch { /* ignore */ } continue; }
+      if (a.contentType === 'application/x-rl-browser' && body) { try { browser.push(this.browserEvent(JSON.parse(body.toString()))); } catch { /* ignore */ } continue; }
       if (a.contentType === 'application/x-rl-data' && body) { data.push(this.toDataBlock(a.name, body.toString())); continue; }
       if (body && (a.contentType === 'text/csv' || /\.csv$/i.test(a.name))) { data.push(this.toDataBlock(a.name, JSON.stringify({ csv: body.toString() }))); continue; }
       // Plain test.info().attach(name, { body: JSON.stringify(x), contentType: 'application/json' }) renders like testData().
@@ -542,7 +543,13 @@ export default class ReportingLabsReporter implements Reporter {
       attachments: normal.map(a => this.serializeAttachment(a, test)).filter(Boolean) as AttachmentData[],
       stdout: r.stdout.map(c => this.masker.maskStr(stripAnsi(c.toString()))),
       stderr: r.stderr.map(c => this.masker.maskStr(stripAnsi(c.toString()))),
+      ...(browser.length ? { browser: browser.sort((x, y) => x.t - y.t) } : {}),
     };
+  }
+
+  private browserEvent(e: BrowserEvent): BrowserEvent {
+    const m = (s?: string) => (s == null ? undefined : this.masker.maskStr(String(s)));
+    return { t: Number(e.t) || 0, kind: e.kind, text: m(e.text) ?? '', url: m(e.url), method: e.method, status: e.status, stack: m(e.stack) };
   }
 
   private serializeStep(s: TestStep): StepData {
@@ -550,6 +557,7 @@ export default class ReportingLabsReporter implements Reporter {
       title: this.masker.maskStr(stepTitle(s)),
       category: s.category,
       duration: s.duration,
+      start: s.startTime.getTime(),
       error: s.error?.message ? this.masker.maskStr(stripAnsi(s.error.message)) : undefined,
       steps: s.steps.filter(c => !isInternalAttach(c)).map(c => this.serializeStep(c)),
     };
