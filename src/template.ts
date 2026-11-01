@@ -1860,7 +1860,9 @@ function renderDetail(t, d, retryIdx){
   let sync=null;
   if(v0!=null){
     const figs=allVids.map(videoFigure), v=figs[0].v, tree=()=>body.querySelectorAll('.step[data-s]');
-    sync={ seek:abs=>{ v.currentTime=Math.max(0,(abs-v0)/1000); v.play().catch(()=>{}); v.scrollIntoView({block:'nearest',behavior:'smooth'}); } };
+    sync={ from:v0, seek:abs=>{ v.currentTime=Math.max(0,(abs-v0)/1000); v.play().catch(()=>{}); v.scrollIntoView({block:'nearest',behavior:'smooth'}); } };
+    // a step that starts after the recording ended (closing the browser) has nothing to show
+    v.addEventListener('loadedmetadata',()=>{ if(!isFinite(v.duration)) return; const end=v0+v.duration*1000; for(const b of body.querySelectorAll('.vplay[data-s]')) if(+b.dataset.s>=end) b.hidden=true; });
     v.addEventListener('timeupdate',()=>{ const at=v0+v.currentTime*1000; let cur=null; for(const el of tree()){ if(el.offsetParent&&+el.dataset.s<=at&&at<=+el.dataset.e) cur=el; } for(const el of body.querySelectorAll('.step.now')) if(el!==cur) el.classList.remove('now'); if(cur) cur.classList.add('now'); });
     body.append(h('h4',{},allVids.length>1?'Videos':'Video'), h('div',{class:'vsync'},
       h('span',{class:'hint'},'In step with the test: the step playing lights up below. Click ▶ on a step to watch it.'),
@@ -1931,7 +1933,8 @@ function stepTree(steps, total, sync){
     const timed=s.start!=null&&!skip;
     const row=h('div',{class:'step'+(bad?' bad':'')+(skip?' skip':''),'data-s':timed?s.start:null,'data-e':timed?s.start+s.duration:null},
       h('span',{class:'tw'}, kids? '▸' : ''), data.bdd?null:h('span',{class:'cat'},s.category), gherkin(s.title), total&&!skip? h('span',{class:'tb',title:Math.round(pct)+'% of the test'}, h('i',{class:pct>=30?'slow':'',style:'width:'+Math.max(pct,s.duration>0?1.5:0)+'%'})) : null, h('span',{class:'d'},skip?'not run':ms(s.duration)),
-      sync&&timed? h('button',{class:'vplay',type:'button',title:'Play the video from this step','aria-label':'Play the video from this step',onclick:e=>{e.stopPropagation();sync.seek(s.start);}},'▶') : null);
+      // only for steps the video shows: not the browser launch and page setup that end before recording starts
+      sync&&timed&&s.start+s.duration>sync.from+100? h('button',{class:'vplay',type:'button','data-s':s.start,title:'Play the video from this step','aria-label':'Play the video from this step',onclick:e=>{e.stopPropagation();sync.seek(s.start);}},'▶') : null);
     if(kids){ row.style.cursor='pointer'; row.addEventListener('click',()=>{li.classList.toggle('collapsed'); row.querySelector('.tw').textContent=li.classList.contains('collapsed')?'▸':'▾';}); if(!li.classList.contains('collapsed')) row.querySelector('.tw').textContent='▾'; }
     li.append(row); if(bad) li.append(h('div',{class:'e'},s.error)); if(kids) li.append(stepTree(s.steps, total, sync));
     return li;
