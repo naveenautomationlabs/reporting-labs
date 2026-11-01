@@ -186,6 +186,8 @@ export interface StepData {
   error?: string;
   /** 'skipped' when the runner never executed it (a Cucumber step after a failed one) */
   status?: 'skipped';
+  /** When it started (ms since epoch), so the report can line steps up with the video. */
+  start?: number;
   steps: StepData[];
 }
 
@@ -214,6 +216,20 @@ export interface ResultData {
   logs: { t: number; msg: string }[];
   data: { name: string; kind: 'table' | 'kv' | 'text'; columns?: string[]; rows?: string[][]; kv?: [string, string][]; text?: string }[];
   api: ApiCall[];
+  /** What the browser reported while the test ran: uncaught JavaScript errors, console.error, failed requests. */
+  browser?: BrowserEvent[];
+}
+
+export interface BrowserEvent {
+  /** ms since epoch */
+  t: number;
+  kind: 'error' | 'console' | 'request';
+  text: string;
+  url?: string;
+  method?: string;
+  /** HTTP status of a request that got a 4xx/5xx; absent when it got no response at all */
+  status?: number;
+  stack?: string;
 }
 
 export interface TestData {
