@@ -317,7 +317,7 @@ are right; data tables and the steps left unrun need 8+.
 ### Failures: everything you need to triage
 
 - **Bug report** button on every failed test: a ready-to-paste ticket with priority, owner, story, environment, test data, steps to reproduce (taken from the test's own steps, the failing one marked), expected vs actual, the error, API calls and attachment names. Pick Markdown, Jira or plain text, edit if you like, copy or download.
-- **Video in step with the test**: with `video` on, a test's video sits above its steps. Click ▶ on any step to watch that moment, or **Watch the failure** to see the 5 seconds before it; the step playing lights up as the video runs.
+- **Video in step with the test**: with `video` on, a test's video sits above its steps. Click ▶ on any step to watch that moment, or **Watch the failure** to see the 5 seconds before it; the step playing lights up as the video runs. A popup or second tab has its own recording, and every player follows the steps.
 - **Run again**: every test shows the command that runs just that test, with a Copy button, e.g. `npx playwright test tests/checkout.spec.ts:12 --project=chromium`. **Copy re-run command** on the Failures tab does the same for all failed tests at once. With playwright-bdd it runs `npx bddgen` first; Cypress and WebdriverIO re-run the spec file (`--spec`).
 - **By owner**: who to ping, with failed and flaky counts. Click an owner to filter.
 - **Download CSV / JSON**: all failed and flaky tests with title, spec, project, priority, owner, ticket, attempts, duration, first error line and new/known status. Ready for Jira or a sheet.

@@ -19,7 +19,7 @@ const DEFAULT_EMBED_LIMIT = 2 * 1024 * 1024;
 
 /** Attach steps created by log() and the automatic API capture; the data shows in its own section, so hide the step. */
 function isInternalAttach(s: TestStep): boolean {
-  return s.category === 'test.attach' && /^Attach "(rl:log|rl:browser|(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) )/.test(s.title);
+  return s.category === 'test.attach' && /^Attach "(rl:log|rl:browser|rl:page|(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) )/.test(s.title);
 }
 
 /** Playwright 1.63+ moved the target out of the title: title `Click`, subtitle `getByRole('button')`; title `Navigate`,
@@ -514,13 +514,23 @@ export default class ReportingLabsReporter implements Reporter {
     return parts;
   }
 
+  /** A video's first frame: Playwright saves the n-th recorded page of a test as video-n.webm (the first as video.webm). */
+  private withVideoStart(out: AttachmentData | null | undefined, a: TestResult['attachments'][number], pageOpened: number[]): AttachmentData | null | undefined {
+    if (!out || !a.path || !a.contentType.startsWith('video/')) return out;
+    const m = /^video(?:-(\d+))?\.webm$/.exec(path.basename(a.path));
+    const t = m ? pageOpened[m[1] ? Number(m[1]) : 0] : undefined;
+    return t != null ? { ...out, videoStart: t } : out;
+  }
+
   private serializeResult(r: TestResult, test: TestCase): ResultData {
     const logs: ResultData['logs'] = [], data: ResultData['data'] = [], api: ResultData['api'] = [], browser: BrowserEvent[] = [];
     const normal: TestResult['attachments'] = [];
+    const pageOpened: number[] = [];   // when each recorded page opened, in order (reporting-labs/auto)
     for (const a of r.attachments) {
       const body = a.body ?? (a.path && fs.existsSync(a.path) ? fs.readFileSync(a.path) : undefined);
       if (a.contentType === 'application/x-rl-log' && body) { try { const l = JSON.parse(body.toString()); logs.push({ t: l.t, msg: this.masker.maskStr(String(l.msg)) }); } catch { /* ignore */ } continue; }
       if (a.contentType === 'application/x-rl-api' && body) { try { api.push(this.masker.mask(JSON.parse(body.toString())) as any); } catch { /* ignore */ } continue; }
+      if (a.contentType === 'application/x-rl-page' && body) { try { const pg = JSON.parse(body.toString()); if (Number.isInteger(pg.i) && typeof pg.t === 'number') pageOpened[pg.i] = pg.t; } catch { /* ignore */ } continue; }
       if (a.contentType === 'application/x-rl-browser' && body) { try { browser.push(this.browserEvent(JSON.parse(body.toString()))); } catch { /* ignore */ } continue; }
       if (a.contentType === 'application/x-rl-data' && body) { data.push(this.toDataBlock(a.name, body.toString())); continue; }
       if (body && (a.contentType === 'text/csv' || /\.csv$/i.test(a.name))) { data.push(this.toDataBlock(a.name, JSON.stringify({ csv: body.toString() }))); continue; }
@@ -540,7 +550,7 @@ export default class ReportingLabsReporter implements Reporter {
       workerIndex: r.parallelIndex,
       errors: r.errors.map(e => this.serializeError(e)),
       steps: r.steps.filter(s => !isInternalAttach(s)).map(s => this.serializeStep(s)),
-      attachments: normal.map(a => this.serializeAttachment(a, test)).filter(Boolean) as AttachmentData[],
+      attachments: normal.map(a => this.withVideoStart(this.serializeAttachment(a, test), a, pageOpened)).filter(Boolean) as AttachmentData[],
       stdout: r.stdout.map(c => this.masker.maskStr(stripAnsi(c.toString()))),
       stderr: r.stderr.map(c => this.masker.maskStr(stripAnsi(c.toString()))),
       ...(browser.length ? { browser: browser.sort((x, y) => x.t - y.t) } : {}),

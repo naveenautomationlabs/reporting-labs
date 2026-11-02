@@ -132,11 +132,24 @@ function note(ev: { kind: 'error' | 'console' | 'request'; text: string; url?: s
   info.attach('rl:browser', { body: JSON.stringify({ t: Date.now(), ...ev }), contentType: 'application/x-rl-browser' }).catch(() => { /* test already finished */ });
 }
 
+/** A recorded page opened. Playwright names the test's videos video.webm, video-1.webm, ... in the order their pages
+ *  opened, so the n-th note here is when video n starts: the report can then play a popup's recording in step too. */
+const pagesSeen = new Map<string, number>();
+function notePage() {
+  const info = currentTest();
+  if (!info) return;
+  const key = info.testId + ':' + info.retry;
+  const i = pagesSeen.get(key) ?? 0;
+  pagesSeen.set(key, i + 1);
+  info.attach('rl:page', { body: JSON.stringify({ i, t: Date.now() }), contentType: 'application/x-rl-page' }).catch(() => { /* test already finished */ });
+}
+
 /** Listen to a browser context: uncaught page errors, console.error, and requests that failed or got 4xx/5xx. */
 function watchContext(ctx: AnyRecord) {
   if (!ctx || typeof ctx.on !== 'function' || ctx[WATCHED]) return;
   ctx[WATCHED] = true;
   const onPage = (page: AnyRecord) => {
+    if (safe(() => page.video())) notePage();
     page.on('pageerror', (err: Error) => note({ kind: 'error', text: oneLine(err?.message || err), stack: oneLine(err?.stack, 4000), url: safe(() => page.url()) }));
     page.on('console', (msg: AnyRecord) => {
       if (msg.type() !== 'error') return;
