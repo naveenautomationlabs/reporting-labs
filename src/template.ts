@@ -116,6 +116,16 @@ a{color:var(--accent)}
 .loc-n{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);margin:2px 4px 2px 0;white-space:nowrap} .loc-n.bad{background:var(--fail-bg);color:var(--fail)} .loc-n.warn{background:var(--flaky-bg);color:var(--flaky-ink)}
 .loc-more td{background:var(--surface-2);padding:6px 10px 10px} .loc-uses{width:100%;border-collapse:collapse;font-size:12.5px} .loc-uses td{padding:4px 8px;border:0}
 .loc-link{font:inherit;background:none;border:0;color:var(--accent);cursor:pointer;padding:0;text-align:left}
+.loc-banner{margin:12px 0 0;padding:10px 14px;border:1px solid var(--fail);background:var(--fail-bg);border-radius:10px;font-size:13.5px;color:var(--ink)} .loc-banner b{color:var(--fail)} .loc-banner .loc-link,.loc-hint .loc-link{margin-left:8px;font-weight:600}
+.loc-hint.top{margin:10px 0 0} .loc-hint{margin:2px 0 8px 28px;padding:6px 10px;border-left:3px solid var(--fail);background:var(--fail-bg);font-size:12.5px;border-radius:0 6px 6px 0} .loc-hint b{color:var(--fail)}
+.loc-health{display:flex;gap:10px;align-items:center;margin:-4px 0 14px;font-size:13px;color:var(--ink-2)} .loc-health b{color:var(--ink)}
+.loc-bar{display:inline-block;width:120px;height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;flex:none} .loc-bar i{display:block;height:100%;background:var(--pass);border-radius:99px} .loc-bar.warn i{background:var(--flaky)}
+.loc-big{font-size:15px;margin:2px 0 6px} .loc-big b{color:var(--fail)}
+.loc-sec{margin-bottom:14px} .loc-rank{width:100%;border-collapse:collapse;font-size:13px} .loc-rank td{padding:7px 8px;border-top:1px solid var(--line);vertical-align:middle} .loc-rank tr:first-child td{border-top:0} .loc-rank .num{text-align:right;white-space:nowrap} .loc-barcell{width:160px} .loc-barcell .loc-bar{width:100%}
+.loc-all>summary{cursor:pointer;list-style:none} .loc-all>summary::-webkit-details-marker{display:none} .loc-all>summary h2::before{content:'▸ ';color:var(--ink-3)} .loc-all[open]>summary h2::before{content:'▾ '} .loc-all[open]>summary{margin-bottom:10px}
+.loc-sort{font:inherit;font-size:12.5px;padding:4px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)} .loc-morebox{margin-top:10px}
+.flash{animation:locflash 1.8s ease-out} @keyframes locflash{0%,40%{background:var(--accent-tint)}100%{background:transparent}}
+@media (max-width:700px){.loc-rank td:nth-child(2){display:none} .loc-health{flex-wrap:wrap} .loc-hint{margin-left:0}}
 @media (max-width:700px){.loc-tools input{margin-left:0;min-width:0;width:100%}
   .loc-tbl thead{display:none} .loc-tbl,.loc-tbl tbody,.loc-tbl tr.loc-tr{display:block} .loc-tbl tr.loc-tr{padding:8px 0;border-bottom:1px solid var(--line)}
   .loc-tbl tr.loc-tr td{display:inline-block;border:0;padding:2px 8px 2px 0;vertical-align:middle} .loc-tbl tr.loc-tr td:first-child{display:block}
@@ -882,7 +892,7 @@ if(params.get('t')) { state.selected = params.get('t'); state.view='tests'; }
 if(params.get('view')) state.view = params.get('view');
 
 try{ const p=localStorage.getItem('rl-palette'); if(p) document.documentElement.setAttribute('data-palette',p); const th=localStorage.getItem('rl-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(e){}
-const LOCS = locatorTable();
+const LOCS = locatorTable(), LOCMAP = new Map(LOCS.map(l=>[l.loc,l]));
 const app = $('#app');
 app.append(h('div',{class:'band'}, stripe(), header(), nav()),
   h('div',{class:'view','data-view':'overview'}, summary()),
@@ -925,6 +935,7 @@ function failuresView(){
   grid.append(h('div',{class:'w12 fx-tools'}, h('span',{class:'fx-sum'}, bad.length+' failed or flaky', PREV.length? ' · '+bad.filter(t=>isFail(t.outcome)&&sinceInfo(t).kind==='new').length+' new since '+runLabel(PREV[PREV.length-1]) : ''), h('span',{class:'spacer'}),
     (()=>{ const c=rerunCmd(data.tests.filter(t=>isFail(t.outcome))); return c? h('button',{class:'btn',title:c,onclick:e=>copyText(c,e.currentTarget,'Command copied')},'Copy re-run command') : null; })(),
     h('button',{class:'btn',onclick:exportCsv,title:'Failures as CSV for Jira or a sheet'},'Download CSV'), h('button',{class:'btn',onclick:exportJson,title:'Failures as JSON'},'Download JSON'), h('button',{class:'btn primary',onclick:e=>copyText(summaryMarkdown(),e.currentTarget,'Copied for Slack')},'Copy summary')));
+  { const lb=locBanner(); if(lb) grid.append(h('div',{class:'w12'},lb)); }
   if(cl.length) grid.append(h('div',{class:'card w6 fail-rail'}, h('h2',{},'Failure clusters', h('span',{class:'hint'},cl.length+' distinct error'+(cl.length>1?'s':''))), clustersView(cl)));
   if(DIMS.length) grid.append(h('div',{class:'card w6 fail-rail'}, h('h2',{},'Needs attention', h('span',{class:'hint'},'ranked by priority and severity')), attention()));
   const oc=ownerCard(); if(oc) grid.append(oc);
@@ -940,19 +951,22 @@ function failuresView(){
 /* Every locator the tests used, read from the Playwright step titles ("Click getByRole('button', { name: 'Apply' })",
    "Expect "toHaveText" locator('#total')"; Playwright before 1.63 leaves the locator out of expect titles). Per locator:
    the tests that used it, the ones where it was not found (a broken locator) or was found with another value than
-   expected (the locator worked), the longest wait, and whether it picks an element by its position on the page. */
+   expected (the locator worked), how long its steps waited, and whether it picks an element by its position. */
+/* The locator in a step title, and the key it is counted under: a number of 3+ digits in it (an order number, an id)
+   becomes "…", so getByText('Order #48213') and getByText('Order #51007') count as one locator. */
+function locOf(title){ const m=/\s((?:getBy[A-Z][A-Za-z]*|locator|frameLocator)\(.*)$/.exec(title||''); if(!m) return null; const loc=m[1].trim(); return {loc, key:loc.replace(/\d{3,}/g,'…'), head:title.slice(0,m.index).trim()}; }
+/* Not found: Playwright waited and never resolved the locator to an element. */
+function locLost(err){ return !!err&&(/element\(s\) not found/.test(err)||(/waiting for/.test(err)&&!/resolved to/.test(err))); }
 function locatorTable(){
-  const RE=/\s((?:getBy[A-Z][A-Za-z]*|locator|frameLocator)\(.*)$/, map=new Map();
+  const map=new Map();
   for(const t of data.tests){ const r=t.results[t.results.length-1]; if(!r) continue;
     const walk=ss=>{ for(const s of ss){
-      if((s.category==='pw:api'||s.category==='expect')&&s.title){ const m=RE.exec(s.title);
-        if(m){ const loc=m[1].trim(), head=s.title.slice(0,m.index).trim(), mx=/^Expect\s+"([^"]+)"/.exec(head);
-          const act=mx? mx[1] : head.split(/\s+/)[0];
-          const err=s.error||'', lostIt=!!err&&(/element\(s\) not found/.test(err)||(/waiting for/.test(err)&&!/resolved to/.test(err)));
-          let e=map.get(loc); if(!e){ e={loc, kind:locKind(loc), weak:locWeak(loc), uses:[], tests:new Set(), lost:new Set(), wrong:new Set(), wait:0, waitOk:0}; map.set(loc,e); }
-          e.uses.push({t, act, dur:s.duration||0, err, lost:lostIt}); e.tests.add(t);
-          if(err) (lostIt? e.lost : e.wrong).add(t); else e.waitOk=Math.max(e.waitOk, s.duration||0);
-          e.wait=Math.max(e.wait, s.duration||0); } }
+      if(s.category==='pw:api'||s.category==='expect'){ const o=locOf(s.title);
+        if(o){ const mx=/^Expect\s+"([^"]+)"/.exec(o.head), act=mx? mx[1] : o.head.split(/\s+/)[0], err=s.error||'', lost=locLost(err), d=s.duration||0;
+          let e=map.get(o.key); if(!e){ e={loc:o.key, kind:locKind(o.key), weak:locWeak(o.key), variants:new Set(), uses:[], tests:new Set(), lost:new Set(), wrong:new Set(), wait:0, waitOk:0, waitSum:0}; map.set(o.key,e); }
+          e.variants.add(o.loc); e.uses.push({t, act, dur:d, err, lost}); e.tests.add(t);
+          if(err) (lost? e.lost : e.wrong).add(t); else { e.waitOk=Math.max(e.waitOk,d); e.waitSum+=d; }
+          e.wait=Math.max(e.wait,d); } }
       walk(s.steps||[]); } };
     walk(r.steps); }
   return [...map.values()].sort((a,b)=>b.lost.size-a.lost.size||b.wrong.size-a.wrong.size||b.tests.size-a.tests.size||a.loc.localeCompare(b.loc));
@@ -968,41 +982,95 @@ function locWeak(l){
   if(/\.nth\(\d+\)|\.first\(\)|\.last\(\)/.test(l)) return 'picks by position';
   const css=/^locator\(\s*['"\x60]([^'"\x60]*)/.exec(l); if(css&&(css[1].match(/\s>\s/g)||[]).length>=3) return 'long CSS path';
   return ''; }
+function plural(n,w){ return n+' '+w+(n===1?'':'s'); }
+/* "31 of 35 failed tests failed on 3 locators that were not on the page", on Overview, Failures and the Locators tab. */
+function locLostSummary(){
+  const lost=LOCS.filter(l=>l.lost.size); if(!lost.length) return null;
+  const ts=new Set(lost.flatMap(l=>[...l.lost].filter(t=>isFail(t.outcome)))), all=data.tests.filter(t=>isFail(t.outcome)).length;
+  return ts.size? {n:ts.size, all, locs:lost.length} : null;
+}
+function locBanner(){
+  const x=locLostSummary(); if(!x) return null;
+  return h('div',{class:'loc-banner'}, h('b',{},x.n+' of '+plural(x.all,'failed test')), ' failed on ', h('b',{},plural(x.locs,'locator')), ' that '+(x.locs>1?'were':'was')+' not found on the page.',
+    h('button',{class:'loc-link',onclick:()=>showView('locators')},'See '+(x.locs>1?'them':'it')+' →'));
+}
+/* From a failed step: open the Locators tab on that locator. */
+function openLocator(key){
+  showView('locators');
+  const el=[...document.querySelectorAll('[data-loc]')].find(x=>x.dataset.loc===key); if(!el) return;
+  el.scrollIntoView({block:'center'}); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),1800);
+}
+/* The first step that failed, deepest first: the one the error comes from. */
+function failedStep(ss){ for(const s of ss){ if(s.error){ return failedStep(s.steps||[])||s; } } return null; }
+/* Under a failed step whose locator was not found: how many other tests it broke. */
+function locHint(s){
+  if(!(s.category==='pw:api'||s.category==='expect')||!locLost(s.error)) return null;
+  const o=locOf(s.title), e=o&&LOCMAP.get(o.key); if(!e||e.lost.size<2) return null;
+  return h('div',{class:'loc-hint'}, 'This locator was not found in ', h('b',{},plural(e.lost.size-1,'other test')), ' in this run too.',
+    h('button',{class:'loc-link',onclick:ev=>{ ev.stopPropagation(); openLocator(e.loc); }},'See them →'));
+}
 function locatorsView(){
   const L=LOCS, p=prevRun(), base=p&&p.tests? p : null, was=t=>{ const r=base&&base.tests[t.key]; return r? r[0] : null; };
-  const lost=L.filter(l=>l.lost.size), slow=L.filter(l=>l.waitOk>=1000), weak=L.filter(l=>l.weak), wrong=L.filter(l=>l.wrong.size);
-  const tests=new Set(L.flatMap(l=>[...l.tests]));
-  const code=l=>h('code',{class:'loc-c',title:l.loc},l.loc);
+  const lost=L.filter(l=>l.lost.size), slow=L.filter(l=>l.waitSum>=1000).sort((a,b)=>b.waitSum-a.waitSum), weak=L.filter(l=>l.weak).sort((a,b)=>b.tests.size-a.tests.size||b.uses.length-a.uses.length);
+  const tests=new Set(L.flatMap(l=>[...l.tests])), strong=L.filter(l=>/^(role|test id|label|placeholder|text|alt text|title)$/.test(l.kind)).length, pct=Math.round(strong/L.length*100);
+  const code=l=>h('code',{class:'loc-c',title:l.variants.size>1? [...l.variants].slice(0,8).join('\n')+(l.variants.size>8?'\n…':'') : l.loc},l.loc);
+  const variants=l=>l.variants.size>1? h('span',{class:'loc-k',title:'The same locator with a different number in each test: '+[...l.variants].slice(0,8).join(', ')}, l.variants.size+' variants') : null;
   const testChip=t=>h('button',{class:'loc-t '+t.outcome,onclick:()=>select(t.id),title:t.file+':'+t.line},t.title);
+  const chips=(ts,max)=>{ const box=h('div',{class:'loc-ts'}), all=[...ts]; const draw=n=>{ box.innerHTML=''; all.slice(0,n).forEach(t=>box.append(testChip(t))); if(all.length>n) box.append(h('button',{class:'loc-f',onclick:()=>draw(all.length)},'+'+(all.length-n)+' more')); }; draw(max); return box; };
   const out=h('div',{});
   out.append(h('div',{class:'api-stats'}, h('span',{},h('b',{},L.length),' locators in ',h('b',{},tests.size),' tests'),
-    h('span',{class:lost.length?'bad':''},h('b',{},lost.length),' not found'), h('span',{},h('b',{},slow.length),' slow (waited 1s+)'), h('span',{},h('b',{},weak.length),' pick by position')));
+    h('span',{class:lost.length?'bad':''},h('b',{},lost.length),' not found'), h('span',{},h('b',{},slow.length),' slow'), h('span',{},h('b',{},weak.length),' pick by position')));
+  out.append(h('div',{class:'loc-health',title:'Role, label, placeholder, text and test id locators follow what the user sees or a stable id. CSS and XPath follow the page structure, which changes more often.'},
+    h('span',{class:'loc-bar'}, h('i',{style:'width:'+pct+'%'})), h('span',{}, h('b',{},pct+'%'),' find elements by role, label, placeholder, text or test id · ', h('b',{},(100-pct)+'%'),' by CSS or XPath')));
+  // 1. not found: the failures one fix can solve
   if(lost.length){
-    const card=h('div',{class:'card loc-lost'}, h('h2',{},'Not found in this run', h('span',{class:'hint'},'the element was not on the page: a broken locator, or a page that did not load')));
+    const x=locLostSummary();
+    const card=h('div',{class:'card loc-lost'}, h('h2',{},'Not found in this run', h('span',{class:'hint'},'the element was not on the page: a changed page, a broken locator, or a page that did not load')),
+      x? h('div',{class:'loc-big'}, h('b',{},x.n+' of '+plural(x.all,'failed test')),' failed on '+(x.locs>1?'these '+x.locs+' locators':'this locator')+'.') : null);
     for(const l of lost){ const ts=[...l.lost], before=base? ts.filter(t=>was(t)==='p').length : 0;
-      card.append(h('div',{class:'loc-row'}, h('div',{class:'loc-head'}, code(l), h('span',{class:'loc-k'},l.kind)),
-        h('div',{class:'loc-say'}, h('b',{},ts.length+' test'+(ts.length>1?'s':'')+' failed on it'), base&&before? ' · '+(before===ts.length?(ts.length>1?'all '+ts.length+' ':'it ')+'passed':before+' of them passed')+' in the last run ('+runLabel(base)+'), so the page changed or this locator did' : '', ts.length>1?' · one fix for all '+ts.length:''),
-        h('div',{class:'loc-ts'}, ts.map(testChip)))); }
+      card.append(h('div',{class:'loc-row','data-loc':l.loc}, h('div',{class:'loc-head'}, code(l), h('span',{class:'loc-k'},l.kind), variants(l)),
+        h('div',{class:'loc-say'}, h('b',{},plural(ts.length,'test')+' failed on it'), base&&before? ' · '+(before===ts.length?(ts.length>1?'all '+ts.length+' ':'it ')+'passed':before+' of them passed')+' in the last run ('+runLabel(base)+')' : '', ts.length>1?' · one fix for all '+ts.length:''),
+        chips(ts,8))); }
     out.append(card); }
-  // all locators, with filters
-  let f='all', q='';
-  const tbody=h('tbody',{}), shown=()=>L.filter(l=>(f==='all'||(f==='failed'&&(l.lost.size||l.wrong.size))||(f==='slow'&&l.waitOk>=1000)||(f==='weak'&&l.weak))&&(!q||l.loc.toLowerCase().includes(q)));
-  const draw=()=>{ tbody.innerHTML=''; for(const l of shown()){
-    const more=h('tr',{class:'loc-more',hidden:''}, h('td',{colspan:6}, h('table',{class:'loc-uses'}, h('tbody',{}, l.uses.map(u=>h('tr',{},
-      h('td',{},h('span',{class:'st '+(u.err?'failed':'passed'),style:'display:inline-block'})), h('td',{},h('button',{class:'loc-link',onclick:()=>select(u.t.id)},u.t.title)), h('td',{class:'t'},u.act), h('td',{class:'t'},ms(u.dur)),
-      h('td',{class:'t'}, u.err? (u.lost?'not found':'found, other value') : '')))))));
-    const notes=[]; if(l.lost.size) notes.push(h('span',{class:'loc-n bad'},'not found in '+l.lost.size)); if(l.wrong.size) notes.push(h('span',{class:'loc-n warn',title:'The locator found the element; the test expected another value'},'found, other value in '+l.wrong.size));
-    if(l.waitOk>=1000) notes.push(h('span',{class:'loc-n warn',title:'The longest wait of a step that passed: the element or its state took this long to be ready'},'waited up to '+ms(l.waitOk)));
-    if(l.weak) notes.push(h('span',{class:'loc-n',title:'Picks the element by its position on the page: it breaks when the layout changes. getByRole, getByLabel or getByTestId keep working.'},l.weak));
-    const row=h('tr',{class:'loc-tr',onclick:()=>{ more.hidden=!more.hidden; row.classList.toggle('open',!more.hidden); }},
-      h('td',{},code(l)), h('td',{},h('span',{class:'loc-k'},l.kind)), h('td',{class:'num','data-u':l.tests.size===1?' test':' tests'},l.tests.size), h('td',{class:'num'},l.uses.length), h('td',{class:'num'},ms(l.wait)), h('td',{},notes));
-    tbody.append(row, more); } };
-  const chip=(k,label,n)=>h('button',{class:'loc-f','aria-pressed':f===k,onclick:e=>{ f=k; e.currentTarget.parentNode.querySelectorAll('.loc-f').forEach(b=>b.setAttribute('aria-pressed',b===e.currentTarget)); draw(); }},label,n!=null?h('span',{},' '+n):null);
-  out.append(h('div',{class:'card'}, h('h2',{},'All locators', h('span',{class:'hint'},'click a row for the steps that used it')),
+  // 2. where the suite waits
+  if(slow.length){
+    const top=slow.slice(0,8), max=top[0].waitSum;
+    out.append(h('div',{class:'card loc-sec'}, h('h2',{},'Most time waiting', h('span',{class:'hint'},'steps that passed, added up: the element or its state was slow to be ready')),
+      h('table',{class:'loc-rank'}, h('tbody',{}, top.map(l=>h('tr',{'data-loc':l.loc}, h('td',{},code(l)), h('td',{class:'loc-barcell'}, h('span',{class:'loc-bar warn'}, h('i',{style:'width:'+Math.max(3,l.waitSum/max*100)+'%'}))),
+        h('td',{class:'num'}, h('b',{},ms(l.waitSum))), h('td',{class:'t'}, plural(l.tests.size,'test')+' · longest '+ms(l.waitOk))))))));
+  }
+  // 3. fragile: position-based, the most used first
+  if(weak.length){
+    const tb=h('tbody',{}), draw=n=>{ tb.innerHTML=''; weak.slice(0,n).forEach(l=>tb.append(h('tr',{'data-loc':l.loc}, h('td',{},code(l)), h('td',{},h('span',{class:'loc-n'},l.weak)), h('td',{class:'t'},plural(l.tests.size,'test'))))); if(weak.length>n) tb.append(h('tr',{},h('td',{colspan:3},h('button',{class:'loc-f',onclick:()=>draw(weak.length)},'Show all '+weak.length)))); };
+    draw(8);
+    out.append(h('div',{class:'card loc-sec'}, h('h2',{},'Pick by position', h('span',{class:'hint'},'break when the layout changes; getByRole, getByLabel or getByTestId keep working. Most used first.')), h('table',{class:'loc-rank'}, tb)));
+  }
+  // 4. every locator, closed unless there is nothing above
+  let f='all', q='', sort='fail', limit=50;
+  const tbody=h('tbody',{}), moreBox=h('div',{class:'loc-morebox'});
+  const sorters={fail:(a,b)=>0, tests:(a,b)=>b.tests.size-a.tests.size||a.loc.localeCompare(b.loc), wait:(a,b)=>b.waitSum-a.waitSum, az:(a,b)=>a.loc.localeCompare(b.loc)};
+  const shown=()=>L.filter(l=>(f==='all'||(f==='failed'&&(l.lost.size||l.wrong.size))||(f==='slow'&&l.waitSum>=1000)||(f==='weak'&&l.weak))&&(!q||[...l.variants].some(v=>v.toLowerCase().includes(q))||[...l.tests].some(t=>t.title.toLowerCase().includes(q)))).sort(sorters[sort]);
+  const draw=()=>{ tbody.innerHTML=''; const rows=shown();
+    for(const l of rows.slice(0,limit)){
+      const more=h('tr',{class:'loc-more',hidden:''}, h('td',{colspan:6}, h('table',{class:'loc-uses'}, h('tbody',{}, l.uses.map(u=>h('tr',{},
+        h('td',{},h('span',{class:'st '+(u.err?'failed':'passed'),style:'display:inline-block'})), h('td',{},h('button',{class:'loc-link',onclick:()=>select(u.t.id)},u.t.title)), h('td',{class:'t'},u.t.file.split('/').pop()), h('td',{class:'t'},u.act), h('td',{class:'t'},ms(u.dur)),
+        h('td',{class:'t'}, u.err? (u.lost?'not found':'found, other value') : '')))))));
+      const notes=[]; if(l.lost.size) notes.push(h('span',{class:'loc-n bad'},'not found in '+l.lost.size)); if(l.wrong.size) notes.push(h('span',{class:'loc-n warn',title:'The locator found the element; the test expected another value'},'found, other value in '+l.wrong.size));
+      if(l.waitSum>=1000) notes.push(h('span',{class:'loc-n warn',title:'Steps that passed, added up'},'waited '+ms(l.waitSum)+' in all'));
+      if(l.weak) notes.push(h('span',{class:'loc-n'},l.weak)); if(l.variants.size>1) notes.push(h('span',{class:'loc-n'},l.variants.size+' variants'));
+      const row=h('tr',{class:'loc-tr','data-loc':l.loc,onclick:()=>{ more.hidden=!more.hidden; row.classList.toggle('open',!more.hidden); }},
+        h('td',{},code(l)), h('td',{},h('span',{class:'loc-k'},l.kind)), h('td',{class:'num','data-u':l.tests.size===1?' test':' tests'},l.tests.size), h('td',{class:'num'},l.uses.length), h('td',{class:'num'},ms(l.wait)), h('td',{},notes));
+      tbody.append(row, more); }
+    moreBox.innerHTML=''; if(rows.length>limit) moreBox.append(h('button',{class:'loc-f',onclick:()=>{ limit+=50; draw(); }},'Show 50 more ('+(rows.length-limit)+' left)'));
+    if(!rows.length) tbody.append(h('tr',{},h('td',{colspan:6,class:'t'},'No locator matches.'))); };
+  const chip=(k,label,n)=>h('button',{class:'loc-f','aria-pressed':f===k,onclick:e=>{ f=k; limit=50; e.currentTarget.parentNode.querySelectorAll('.loc-f').forEach(b=>b.setAttribute('aria-pressed',b===e.currentTarget)); draw(); }},label,n!=null?h('span',{},' '+n):null);
+  const all=h('details',{class:'card loc-all'}, h('summary',{}, h('h2',{},'All '+L.length+' locators', h('span',{class:'hint'},'search by locator or test name; click a row for the steps that used it'))),
     h('div',{class:'loc-tools'}, chip('all','All',L.length), chip('failed','Failed',L.filter(l=>l.lost.size||l.wrong.size).length), chip('slow','Slow',slow.length), chip('weak','By position',weak.length),
-      h('input',{type:'search',placeholder:'Find a locator',oninput:e=>{ q=e.target.value.toLowerCase(); draw(); }})),
-    h('table',{class:'apitbl loc-tbl'}, h('thead',{}, h('tr',{}, ['Locator','Kind','Tests','Steps','Longest wait',''].map(x=>h('th',{},x)))), tbody)));
-  draw();
+      h('select',{class:'loc-sort','aria-label':'Sort',onchange:e=>{ sort=e.target.value; draw(); }}, [['fail','Failures first'],['tests','Most tests'],['wait','Most waiting'],['az','A to Z']].map(([v,t])=>h('option',{value:v},t))),
+      h('input',{type:'search',placeholder:'Find a locator or test',oninput:e=>{ q=e.target.value.toLowerCase(); limit=50; draw(); }})),
+    h('table',{class:'apitbl loc-tbl'}, h('thead',{}, h('tr',{}, ['Locator','Kind','Tests','Steps','Longest wait',''].map(x=>h('th',{},x)))), tbody), moreBox);
+  if(!lost.length&&!slow.length&&!weak.length) all.open=true;
+  draw(); out.append(all);
   return out;
 }
 /** A 4xx/5xx is a failure only when the attempt that made the call failed. In a passing attempt it is the
@@ -1328,7 +1396,7 @@ function summary(){
       pill('failed','Failed',failed,'var(--fail)', failed? (nNew!=null? nNew+' new · '+(failed-nNew)+' known' : nClu+' root cause'+(nClu===1?'':'s')) : 'Nothing broke', failed?'down':'', hseries(e=>e.failed)),
       pill('flaky','Flaky',s.flaky,'var(--flaky)', s.flaky? 'Passed on retry' : 'No retries needed', '', hseries(e=>e.flaky)),
       pill('skipped','Skipped',s.skipped,'var(--skip)', s.skipped? 'Not executed' : 'Everything ran', '', hseries(e=>e.skipped))),
-    data.options.widgets.changes!==false? changesLine() : null);
+    data.options.widgets.changes!==false? changesLine() : null, locBanner());
   if(data.options.widgets.runStrip && data.tests.length){
     const strip = h('div',{class:'strip',id:'strip'}, data.tests.map(t=>h('button',{class:'cell '+t.outcome,'data-id':t.id,title:t.title+' · '+label[t.outcome]+' · '+ms(t.duration),'aria-label':t.title,onclick:()=>select(t.id)})));
     el.append(strip, h('div',{class:'strip-cap'}, 'Every test in run order. Hover for details, click to open.'));
@@ -1941,6 +2009,7 @@ function renderDetail(t, d, retryIdx){
   const failedRun=r.status!=='passed'&&r.status!=='skipped', fail=failedRun? failMoment(r) : null;
   const bsec=browserView(r, fail);
   if(r.errors.length){ body.append(h('h4',{},r.errors.length>1?'Errors':'Error'), ...r.errors.map(errorView));
+    { const st=failedStep(r.steps), lh=st&&locHint(st); if(lh) body.append(h('div',{class:'loc-hint top'},...lh.childNodes)); }
     const near=fail!=null? (r.browser||[]).filter(e=>e.t<=fail&&fail-e.t<=5000).length : 0;
     if(near&&bsec) body.append(h('button',{class:'bev-jump',type:'button',onclick:()=>bsec.scrollIntoView({block:'start',behavior:'smooth'})}, 'The browser reported '+near+' problem'+(near>1?'s':'')+' in the 5 seconds before this failure. See what the browser saw ↓')); }
   if(bsec&&failedRun) body.append(bsec);
@@ -2044,7 +2113,7 @@ function stepTree(steps, total, sync){
       // only for steps the video shows: not the browser launch and page setup that end before recording starts
       sync&&timed&&s.start+s.duration>sync.from+100? h('button',{class:'vplay',type:'button','data-s':s.start,title:'Play the video from this step','aria-label':'Play the video from this step',onclick:e=>{e.stopPropagation();sync.seek(s.start);}},'▶') : null);
     if(kids){ row.style.cursor='pointer'; row.addEventListener('click',()=>{li.classList.toggle('collapsed'); row.querySelector('.tw').textContent=li.classList.contains('collapsed')?'▸':'▾';}); if(!li.classList.contains('collapsed')) row.querySelector('.tw').textContent='▾'; }
-    li.append(row); if(bad) li.append(h('div',{class:'e'},s.error)); if(kids) li.append(stepTree(s.steps, total, sync));
+    li.append(row); if(bad){ li.append(h('div',{class:'e'},s.error)); const lh=locHint(s); if(lh) li.append(lh); } if(kids) li.append(stepTree(s.steps, total, sync));
     return li;
   }));
 }
